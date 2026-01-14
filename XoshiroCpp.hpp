@@ -641,6 +641,102 @@ namespace XoshiroCpp
 
 		state_type m_state;
 	};
+
+	// xoroshiro64*
+	// Output: 32 bits
+	// Period: 2^64 - 1
+	// Footprint: 8 bytes
+	// Original implementation: http://prng.di.unimi.it/xoroshiro64star.c
+	class Xoroshiro64Star
+	{
+	public:
+
+		using state_type = std::array<std::uint32_t, 2>;
+		using result_type = std::uint32_t;
+
+		XOSHIROCPP_NODISCARD_CXX20
+			explicit constexpr Xoroshiro64Star(std::uint64_t seed = DefaultSeed) noexcept;
+
+		XOSHIROCPP_NODISCARD_CXX20
+			explicit constexpr Xoroshiro64Star(state_type state) noexcept;
+
+		constexpr result_type operator()() noexcept;
+
+		[[nodiscard]]
+		static constexpr result_type min() noexcept;
+
+		[[nodiscard]]
+		static constexpr result_type max() noexcept;
+
+		[[nodiscard]]
+		constexpr state_type serialize() const noexcept;
+
+		constexpr void deserialize(state_type state) noexcept;
+
+		[[nodiscard]]
+		friend bool operator ==(const Xoroshiro64Star& lhs, const Xoroshiro64Star& rhs) noexcept
+		{
+			return (lhs.m_state == rhs.m_state);
+		}
+
+		[[nodiscard]]
+		friend bool operator !=(const Xoroshiro64Star& lhs, const Xoroshiro64Star& rhs) noexcept
+		{
+			return (lhs.m_state != rhs.m_state);
+		}
+
+	private:
+
+		state_type m_state;
+	};
+
+	// xoroshiro64**
+	// Output: 32 bits
+	// Period: 2^64 - 1
+	// Footprint: 8 bytes
+	// Original implementation: http://prng.di.unimi.it/xoroshiro64starstar.c
+	class Xoroshiro64StarStar
+	{
+	public:
+
+		using state_type = std::array<std::uint32_t, 2>;
+		using result_type = std::uint32_t;
+
+		XOSHIROCPP_NODISCARD_CXX20
+			explicit constexpr Xoroshiro64StarStar(std::uint64_t seed = DefaultSeed) noexcept;
+
+		XOSHIROCPP_NODISCARD_CXX20
+			explicit constexpr Xoroshiro64StarStar(state_type state) noexcept;
+
+		constexpr result_type operator()() noexcept;
+
+		[[nodiscard]]
+		static constexpr result_type min() noexcept;
+
+		[[nodiscard]]
+		static constexpr result_type max() noexcept;
+
+		[[nodiscard]]
+		constexpr state_type serialize() const noexcept;
+
+		constexpr void deserialize(state_type state) noexcept;
+
+		[[nodiscard]]
+		friend bool operator ==(const Xoroshiro64StarStar& lhs, const Xoroshiro64StarStar& rhs) noexcept
+		{
+			return (lhs.m_state == rhs.m_state);
+		}
+
+		[[nodiscard]]
+		friend bool operator !=(const Xoroshiro64StarStar& lhs, const Xoroshiro64StarStar& rhs) noexcept
+		{
+			return (lhs.m_state != rhs.m_state);
+		}
+
+	private:
+
+		state_type m_state;
+	};
 }
 
 ////////////////////////////////////////////////////////////////
@@ -1627,6 +1723,112 @@ namespace XoshiroCpp
 	}
 
 	inline constexpr void Xoshiro128StarStar::deserialize(const state_type state) noexcept
+	{
+		m_state = state;
+	}
+
+	////////////////////////////////////////////////////////////////
+	//
+	//	xoroshiro64*
+	//
+	inline constexpr Xoroshiro64Star::Xoroshiro64Star(const std::uint64_t seed) noexcept
+		: m_state()
+	{
+		SplitMix64 splitmix{ seed };
+
+		for (auto& state : m_state)
+		{
+			state = static_cast<std::uint32_t>(splitmix());
+		}
+	}
+
+	inline constexpr Xoroshiro64Star::Xoroshiro64Star(const state_type state) noexcept
+		: m_state(state) {
+	}
+
+	inline constexpr Xoroshiro64Star::result_type Xoroshiro64Star::operator()() noexcept
+	{
+		const std::uint32_t s0 = m_state[0];
+		std::uint32_t s1 = m_state[1];
+
+		const std::uint32_t result = s0 * 0x9E3779BB;
+
+		s1 ^= s0;
+		m_state[0] = detail::RotL(s0, 26) ^ s1 ^ (s1 << 9);
+		m_state[1] = detail::RotL(s1, 13);
+
+		return result;
+	}
+
+	inline constexpr Xoroshiro64Star::result_type Xoroshiro64Star::min() noexcept
+	{
+		return std::numeric_limits<result_type>::lowest();
+	}
+
+	inline constexpr Xoroshiro64Star::result_type Xoroshiro64Star::max() noexcept
+	{
+		return std::numeric_limits<result_type>::max();
+	}
+
+	inline constexpr Xoroshiro64Star::state_type Xoroshiro64Star::serialize() const noexcept
+	{
+		return m_state;
+	}
+
+	inline constexpr void Xoroshiro64Star::deserialize(const state_type state) noexcept
+	{
+		m_state = state;
+	}
+
+	////////////////////////////////////////////////////////////////
+	//
+	//	xoroshiro64**
+	//
+	inline constexpr Xoroshiro64StarStar::Xoroshiro64StarStar(const std::uint64_t seed) noexcept
+		: m_state()
+	{
+		SplitMix64 splitmix{ seed };
+
+		for (auto& state : m_state)
+		{
+			state = static_cast<std::uint32_t>(splitmix());
+		}
+	}
+
+	inline constexpr Xoroshiro64StarStar::Xoroshiro64StarStar(const state_type state) noexcept
+		: m_state(state) {
+	}
+
+	inline constexpr Xoroshiro64StarStar::result_type Xoroshiro64StarStar::operator()() noexcept
+	{
+		const std::uint32_t s0 = m_state[0];
+		std::uint32_t s1 = m_state[1];
+
+		const std::uint32_t result = detail::RotL(s0 * 0x9E3779BB, 5) * 5;
+
+		s1 ^= s0;
+		m_state[0] = detail::RotL(s0, 26) ^ s1 ^ (s1 << 9);
+		m_state[1] = detail::RotL(s1, 13);
+
+		return result;
+	}
+
+	inline constexpr Xoroshiro64StarStar::result_type Xoroshiro64StarStar::min() noexcept
+	{
+		return std::numeric_limits<result_type>::lowest();
+	}
+
+	inline constexpr Xoroshiro64StarStar::result_type Xoroshiro64StarStar::max() noexcept
+	{
+		return std::numeric_limits<result_type>::max();
+	}
+
+	inline constexpr Xoroshiro64StarStar::state_type Xoroshiro64StarStar::serialize() const noexcept
+	{
+		return m_state;
+	}
+
+	inline constexpr void Xoroshiro64StarStar::deserialize(const state_type state) noexcept
 	{
 		m_state = state;
 	}
