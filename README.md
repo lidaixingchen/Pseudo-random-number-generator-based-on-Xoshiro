@@ -1,4 +1,4 @@
-# Xoshiro-cpp <a href="https://github.com/Reputeless/Xoshiro-cpp/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-MIT-4aaa4a"></a> <a href="https://github.com/sponsors/Reputeless"><img src="https://img.shields.io/badge/funding-GitHub_Sponsors-ea4aaa"></a>
+# Xoshiro-cpp <a href="https://github.com/Reputeless/Xoshiro-cpp/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-MIT-4aaa4a"></a> 
 **Xoshiro-cpp** 是一个适用于现代 C++ 的纯头文件伪随机数生成器库。  
 基于 **David Blackman 和 Sebastiano Vigna 的 [xoshiro/xoroshiro 生成器](http://prng.di.unimi.it/)**。
 
