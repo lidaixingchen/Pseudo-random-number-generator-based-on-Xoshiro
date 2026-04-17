@@ -1,27 +1,27 @@
 //----------------------------------------------------------------------------------------
 //
 //	Xoshiro-cpp
-//	Xoshiro PRNG wrapper library for C++17 / C++20
+//	适用于 C++17 / C++20 的 Xoshiro 伪随机数生成器封装库
 //
-//	Copyright (C) 2020 Ryo Suzuki <reputeless@gmail.com>
+//	版权所有 (C) 2020 Ryo Suzuki <reputeless@gmail.com>
 //
-//	Permission is hereby granted, free of charge, to any person obtaining a copy
-//	of this software and associated documentation files(the "Software"), to deal
-//	in the Software without restriction, including without limitation the rights
-//	to use, copy, modify, merge, publish, distribute, sublicense, and / or sell
-//	copies of the Software, and to permit persons to whom the Software is
-//	furnished to do so, subject to the following conditions :
+//	特此免费授予任何获得本软件副本的个人许可，
+//	可处理本软件及相关文档文件（以下简称“软件”），
+//	且不受限制，包括但不限于以下权利：
+//	使用、复制、修改、合并、发布、分发、再许可和/或销售
+//	软件副本，并允许获得软件的人这样做，
+//	但须符合以下条件：
 //	
-//	The above copyright notice and this permission notice shall be included in
-//	all copies or substantial portions of the Software.
+//	上述版权声明和本许可声明应包含在
+//	软件的所有副本或主要部分中。
 //	
-//	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-//	IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-//	FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.IN NO EVENT SHALL THE
-//	AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-//	LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-//	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-//	THE SOFTWARE.
+//	本软件按“原样”提供，不附带任何明示或默示担保，
+//	包括但不限于适销性担保，
+//	特定用途适用性和不侵权担保。在任何情况下，
+//	作者或版权持有人均不对任何索赔、损害或其他责任承担责任，
+//	无论该等责任源于合同、侵权或其他行为，
+//	不论由软件或软件的使用或其他交易引起，
+//	均不承担责任。
 //
 //----------------------------------------------------------------------------------------
 
@@ -38,26 +38,26 @@
 
 namespace XoshiroCpp
 {
-	// A default seed value for the generators
+	// 生成器的默认种子值
 	inline constexpr std::uint64_t DefaultSeed = 1234567890ULL;
 
-	// Converts given uint32 value `i` into a 32-bit floating
-	// point value in the range of [0.0f, 1.0f)
+	// 将给定的 uint32 值 `i` 转换为 32 位浮点
+	// 范围在 [0.0f, 1.0f) 的数值
 	template <class Uint32, std::enable_if_t<std::is_same_v<Uint32, std::uint32_t>>* = nullptr>
 	[[nodiscard]]
 	inline constexpr float FloatFromBits(Uint32 i) noexcept;
 
-	// Converts given uint64 value `i` into a 64-bit floating
-	// point value in the range of [0.0, 1.0)
+	// 将给定的 uint64 值 `i` 转换为 64 位浮点
+	// 范围在 [0.0, 1.0) 的数值
 	template <class Uint64, std::enable_if_t<std::is_same_v<Uint64, std::uint64_t>>* = nullptr>
 	[[nodiscard]]
 	inline constexpr double DoubleFromBits(Uint64 i) noexcept;
 
 	// SplitMix64
-	// Output: 64 bits
-	// Period: 2^64
-	// Footprint: 8 bytes
-	// Original implementation: http://prng.di.unimi.it/splitmix64.c
+	// 输出：64 位
+	// 周期：2^64
+	// 占用：8 字节
+	// 原始实现：http://prng.di.unimi.it/splitmix64.c
 	class SplitMix64
 	{
 	public:
@@ -103,11 +103,11 @@ namespace XoshiroCpp
 	};
 
 	// xoshiro256+
-	// Output: 64 bits
-	// Period: 2^256 - 1
-	// Footprint: 32 bytes
-	// Original implementation: http://prng.di.unimi.it/xoshiro256plus.c
-	// Version: 1.0
+	// 输出：64 位
+	// 周期：2^256 - 1
+	// 占用：32 字节
+	// 原始实现：http://prng.di.unimi.it/xoshiro256plus.c
+	// 版本：1.0
 	class Xoshiro256Plus
 	{
 	public:
@@ -123,15 +123,15 @@ namespace XoshiroCpp
 
 		constexpr result_type operator()() noexcept;
 
-		// This is the jump function for the generator. It is equivalent
-		// to 2^128 calls to operator(); it can be used to generate 2^128
-		// non-overlapping subsequences for parallel computations.
+		// 这是该生成器的 jump 函数。它等价于
+		// 调用 2^128 次 operator()；可用于生成 2^128 个
+		// 互不重叠的子序列，用于并行计算。
 		constexpr void jump() noexcept;
 
-		// This is the long-jump function for the generator. It is equivalent to
-		// 2^192 calls to next(); it can be used to generate 2^64 starting points,
-		// from each of which jump() will generate 2^64 non-overlapping
-		// subsequences for parallel distributed computations.
+		// 这是该生成器的 long-jump 函数。它等价于
+		// 调用 2^192 次 next()；可用于生成 2^64 个起始点，
+		// 每个起始点通过 jump() 可生成 2^64 个互不重叠的
+		// 子序列，用于分布式并行计算。
 		constexpr void longJump() noexcept;
 
 		[[nodiscard]]
@@ -163,11 +163,11 @@ namespace XoshiroCpp
 	};
 
 	// xoshiro256++
-	// Output: 64 bits
-	// Period: 2^256 - 1
-	// Footprint: 32 bytes
-	// Original implementation: http://prng.di.unimi.it/xoshiro256plusplus.c
-	// Version: 1.0
+	// 输出：64 位
+	// 周期：2^256 - 1
+	// 占用：32 字节
+	// 原始实现：http://prng.di.unimi.it/xoshiro256plusplus.c
+	// 版本：1.0
 	class Xoshiro256PlusPlus
 	{
 	public:
@@ -183,15 +183,15 @@ namespace XoshiroCpp
 
 		constexpr result_type operator()() noexcept;
 
-		// This is the jump function for the generator. It is equivalent
-		// to 2^128 calls to next(); it can be used to generate 2^128
-		// non-overlapping subsequences for parallel computations.
+		// 这是该生成器的 jump 函数。它等价于
+		// 调用 2^128 次 next()；可用于生成 2^128 个
+		// 互不重叠的子序列，用于并行计算。
 		constexpr void jump() noexcept;
 
-		// This is the long-jump function for the generator. It is equivalent to
-		// 2^192 calls to next(); it can be used to generate 2^64 starting points,
-		// from each of which jump() will generate 2^64 non-overlapping
-		// subsequences for parallel distributed computations.
+		// 这是该生成器的 long-jump 函数。它等价于
+		// 调用 2^192 次 next()；可用于生成 2^64 个起始点，
+		// 每个起始点通过 jump() 可生成 2^64 个互不重叠的
+		// 子序列，用于分布式并行计算。
 		constexpr void longJump() noexcept;
 
 		[[nodiscard]]
@@ -223,11 +223,11 @@ namespace XoshiroCpp
 	};
 
 	// xoshiro256**
-	// Output: 64 bits
-	// Period: 2^256 - 1
-	// Footprint: 32 bytes
-	// Original implementation: http://prng.di.unimi.it/xoshiro256starstar.c
-	// Version: 1.0
+	// 输出：64 位
+	// 周期：2^256 - 1
+	// 占用：32 字节
+	// 原始实现：http://prng.di.unimi.it/xoshiro256starstar.c
+	// 版本：1.0
 	class Xoshiro256StarStar
 	{
 	public:
@@ -243,15 +243,15 @@ namespace XoshiroCpp
 
 		constexpr result_type operator()() noexcept;
 
-		// This is the jump function for the generator. It is equivalent
-		// to 2^128 calls to next(); it can be used to generate 2^128
-		// non-overlapping subsequences for parallel computations.
+		// 这是该生成器的 jump 函数。它等价于
+		// 调用 2^128 次 next()；可用于生成 2^128 个
+		// 互不重叠的子序列，用于并行计算。
 		constexpr void jump() noexcept;
 
-		// This is the long-jump function for the generator. It is equivalent to
-		// 2^192 calls to next(); it can be used to generate 2^64 starting points,
-		// from each of which jump() will generate 2^64 non-overlapping
-		// subsequences for parallel distributed computations.
+		// 这是该生成器的 long-jump 函数。它等价于
+		// 调用 2^192 次 next()；可用于生成 2^64 个起始点，
+		// 每个起始点通过 jump() 可生成 2^64 个互不重叠的
+		// 子序列，用于分布式并行计算。
 		constexpr void longJump() noexcept;
 
 		[[nodiscard]]
@@ -283,11 +283,11 @@ namespace XoshiroCpp
 	};
 
 	// xoroshiro128+
-	// Output: 64 bits
-	// Period: 2^128 - 1
-	// Footprint: 16 bytes
-	// Original implementation: http://prng.di.unimi.it/xoroshiro128plus.c
-	// Version: 1.0
+	// 输出：64 位
+	// 周期：2^128 - 1
+	// 占用：16 字节
+	// 原始实现：http://prng.di.unimi.it/xoroshiro128plus.c
+	// 版本：1.0
 	class Xoroshiro128Plus
 	{
 	public:
@@ -303,15 +303,15 @@ namespace XoshiroCpp
 
 		constexpr result_type operator()() noexcept;
 
-		// This is the jump function for the generator. It is equivalent
-		// to 2^64 calls to next(); it can be used to generate 2^64
-		// non-overlapping subsequences for parallel computations.
+		// 这是该生成器的 jump 函数。它等价于
+		// 调用 2^64 次 next()；可用于生成 2^64 个
+		// 互不重叠的子序列，用于并行计算。
 		constexpr void jump() noexcept;
 
-		// This is the long-jump function for the generator. It is equivalent to
-		// 2^96 calls to next(); it can be used to generate 2^32 starting points,
-		// from each of which jump() will generate 2^32 non-overlapping
-		// subsequences for parallel distributed computations.
+		// 这是该生成器的 long-jump 函数。它等价于
+		// 调用 2^96 次 next()；可用于生成 2^32 个起始点，
+		// 每个起始点通过 jump() 可生成 2^32 个互不重叠的
+		// 子序列，用于分布式并行计算。
 		constexpr void longJump() noexcept;
 
 		[[nodiscard]]
@@ -343,11 +343,11 @@ namespace XoshiroCpp
 	};
 
 	// xoroshiro128++
-	// Output: 64 bits
-	// Period: 2^128 - 1
-	// Footprint: 16 bytes
-	// Original implementation: http://prng.di.unimi.it/xoroshiro128plusplus.c
-	// Version: 1.0
+	// 输出：64 位
+	// 周期：2^128 - 1
+	// 占用：16 字节
+	// 原始实现：http://prng.di.unimi.it/xoroshiro128plusplus.c
+	// 版本：1.0
 	class Xoroshiro128PlusPlus
 	{
 	public:
@@ -363,15 +363,15 @@ namespace XoshiroCpp
 
 		constexpr result_type operator()() noexcept;
 
-		// This is the jump function for the generator. It is equivalent
-		// to 2^64 calls to next(); it can be used to generate 2^64
-		// non-overlapping subsequences for parallel computations.
+		// 这是该生成器的 jump 函数。它等价于
+		// 调用 2^64 次 next()；可用于生成 2^64 个
+		// 互不重叠的子序列，用于并行计算。
 		constexpr void jump() noexcept;
 
-		// This is the long-jump function for the generator. It is equivalent to
-		// 2^96 calls to next(); it can be used to generate 2^32 starting points,
-		// from each of which jump() will generate 2^32 non-overlapping
-		// subsequences for parallel distributed computations.
+		// 这是该生成器的 long-jump 函数。它等价于
+		// 调用 2^96 次 next()；可用于生成 2^32 个起始点，
+		// 每个起始点通过 jump() 可生成 2^32 个互不重叠的
+		// 子序列，用于分布式并行计算。
 		constexpr void longJump() noexcept;
 
 		[[nodiscard]]
@@ -403,11 +403,11 @@ namespace XoshiroCpp
 	};
 
 	// xoroshiro128**
-	// Output: 64 bits
-	// Period: 2^128 - 1
-	// Footprint: 16 bytes
-	// Original implementation: http://prng.di.unimi.it/xoroshiro128starstar.c
-	// Version: 1.0
+	// 输出：64 位
+	// 周期：2^128 - 1
+	// 占用：16 字节
+	// 原始实现：http://prng.di.unimi.it/xoroshiro128starstar.c
+	// 版本：1.0
 	class Xoroshiro128StarStar
 	{
 	public:
@@ -423,15 +423,15 @@ namespace XoshiroCpp
 
 		constexpr result_type operator()() noexcept;
 
-		// This is the jump function for the generator. It is equivalent
-		// to 2^64 calls to next(); it can be used to generate 2^64
-		// non-overlapping subsequences for parallel computations.
+		// 这是该生成器的 jump 函数。它等价于
+		// 调用 2^64 次 next()；可用于生成 2^64 个
+		// 互不重叠的子序列，用于并行计算。
 		constexpr void jump() noexcept;
 
-		// This is the long-jump function for the generator. It is equivalent to
-		// 2^96 calls to next(); it can be used to generate 2^32 starting points,
-		// from each of which jump() will generate 2^32 non-overlapping
-		// subsequences for parallel distributed computations.
+		// 这是该生成器的 long-jump 函数。它等价于
+		// 调用 2^96 次 next()；可用于生成 2^32 个起始点，
+		// 每个起始点通过 jump() 可生成 2^32 个互不重叠的
+		// 子序列，用于分布式并行计算。
 		constexpr void longJump() noexcept;
 
 		[[nodiscard]]
@@ -463,11 +463,11 @@ namespace XoshiroCpp
 	};
 
 	// xoshiro128+
-	// Output: 32 bits
-	// Period: 2^128 - 1
-	// Footprint: 16 bytes
-	// Original implementation: http://prng.di.unimi.it/xoshiro128plus.c
-	// Version: 1.0
+	// 输出：32 位
+	// 周期：2^128 - 1
+	// 占用：16 字节
+	// 原始实现：http://prng.di.unimi.it/xoshiro128plus.c
+	// 版本：1.0
 	class Xoshiro128Plus
 	{
 	public:
@@ -483,15 +483,15 @@ namespace XoshiroCpp
 
 		constexpr result_type operator()() noexcept;
 
-		// This is the jump function for the generator. It is equivalent
-		// to 2^64 calls to next(); it can be used to generate 2^64
-		// non-overlapping subsequences for parallel computations.
+		// 这是该生成器的 jump 函数。它等价于
+		// 调用 2^64 次 next()；可用于生成 2^64 个
+		// 互不重叠的子序列，用于并行计算。
 		constexpr void jump() noexcept;
 
-		// This is the long-jump function for the generator. It is equivalent to
-		// 2^96 calls to next(); it can be used to generate 2^32 starting points,
-		// from each of which jump() will generate 2^32 non-overlapping
-		// subsequences for parallel distributed computations.
+		// 这是该生成器的 long-jump 函数。它等价于
+		// 调用 2^96 次 next()；可用于生成 2^32 个起始点，
+		// 每个起始点通过 jump() 可生成 2^32 个互不重叠的
+		// 子序列，用于分布式并行计算。
 		constexpr void longJump() noexcept;
 
 		[[nodiscard]]
@@ -523,11 +523,11 @@ namespace XoshiroCpp
 	};
 
 	// xoshiro128++
-	// Output: 32 bits
-	// Period: 2^128 - 1
-	// Footprint: 16 bytes
-	// Original implementation: http://prng.di.unimi.it/xoshiro128plusplus.c
-	// Version: 1.0
+	// 输出：32 位
+	// 周期：2^128 - 1
+	// 占用：16 字节
+	// 原始实现：http://prng.di.unimi.it/xoshiro128plusplus.c
+	// 版本：1.0
 	class Xoshiro128PlusPlus
 	{
 	public:
@@ -543,15 +543,15 @@ namespace XoshiroCpp
 
 		constexpr result_type operator()() noexcept;
 
-		// This is the jump function for the generator. It is equivalent
-		// to 2^64 calls to next(); it can be used to generate 2^64
-		// non-overlapping subsequences for parallel computations.
+		// 这是该生成器的 jump 函数。它等价于
+		// 调用 2^64 次 next()；可用于生成 2^64 个
+		// 互不重叠的子序列，用于并行计算。
 		constexpr void jump() noexcept;
 
-		// This is the long-jump function for the generator. It is equivalent to
-		// 2^96 calls to next(); it can be used to generate 2^32 starting points,
-		// from each of which jump() will generate 2^32 non-overlapping
-		// subsequences for parallel distributed computations.
+		// 这是该生成器的 long-jump 函数。它等价于
+		// 调用 2^96 次 next()；可用于生成 2^32 个起始点，
+		// 每个起始点通过 jump() 可生成 2^32 个互不重叠的
+		// 子序列，用于分布式并行计算。
 		constexpr void longJump() noexcept;
 
 		[[nodiscard]]
@@ -583,11 +583,11 @@ namespace XoshiroCpp
 	};
 
 	// xoshiro128**
-	// Output: 32 bits
-	// Period: 2^128 - 1
-	// Footprint: 16 bytes
-	// Original implementation: http://prng.di.unimi.it/xoshiro128starstar.c
-	// Version: 1.1
+	// 输出：32 位
+	// 周期：2^128 - 1
+	// 占用：16 字节
+	// 原始实现：http://prng.di.unimi.it/xoshiro128starstar.c
+	// 版本：1.1
 	class Xoshiro128StarStar
 	{
 	public:
@@ -603,15 +603,15 @@ namespace XoshiroCpp
 
 		constexpr result_type operator()() noexcept;
 
-		// This is the jump function for the generator. It is equivalent
-		// to 2^64 calls to next(); it can be used to generate 2^64
-		// non-overlapping subsequences for parallel computations.
+		// 这是该生成器的 jump 函数。它等价于
+		// 调用 2^64 次 next()；可用于生成 2^64 个
+		// 互不重叠的子序列，用于并行计算。
 		constexpr void jump() noexcept;
 
-		// This is the long-jump function for the generator. It is equivalent to
-		// 2^96 calls to next(); it can be used to generate 2^32 starting points,
-		// from each of which jump() will generate 2^32 non-overlapping
-		// subsequences for parallel distributed computations.
+		// 这是该生成器的 long-jump 函数。它等价于
+		// 调用 2^96 次 next()；可用于生成 2^32 个起始点，
+		// 每个起始点通过 jump() 可生成 2^32 个互不重叠的
+		// 子序列，用于分布式并行计算。
 		constexpr void longJump() noexcept;
 
 		[[nodiscard]]
@@ -643,10 +643,10 @@ namespace XoshiroCpp
 	};
 
 	// xoroshiro64*
-	// Output: 32 bits
-	// Period: 2^64 - 1
-	// Footprint: 8 bytes
-	// Original implementation: http://prng.di.unimi.it/xoroshiro64star.c
+	// 输出：32 位
+	// 周期：2^64 - 1
+	// 占用：8 字节
+	// 原始实现：http://prng.di.unimi.it/xoroshiro64star.c
 	class Xoroshiro64Star
 	{
 	public:
@@ -691,10 +691,10 @@ namespace XoshiroCpp
 	};
 
 	// xoroshiro64**
-	// Output: 32 bits
-	// Period: 2^64 - 1
-	// Footprint: 8 bytes
-	// Original implementation: http://prng.di.unimi.it/xoroshiro64starstar.c
+	// 输出：32 位
+	// 周期：2^64 - 1
+	// 占用：8 字节
+	// 原始实现：http://prng.di.unimi.it/xoroshiro64starstar.c
 	class Xoroshiro64StarStar
 	{
 	public:
