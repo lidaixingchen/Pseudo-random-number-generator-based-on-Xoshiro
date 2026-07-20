@@ -1,11 +1,23 @@
-# Random.hpp
+# Pseudo-random-number-generator-based-on-Xoshiro
 
-基于 **xoshiro/xoroshiro** 算法族的纯头文件伪随机数生成器库，面向 **C++23**。
+基于 **xoshiro/xoroshiro** 算法族的纯头文件伪随机数生成器库。
 
 原始算法：[David Blackman & Sebastiano Vigna](http://prng.di.unimi.it/)
 原始 C++ 封装：[Ryo Suzuki (Xoshiro-cpp)](https://github.com/Reputeless/Xoshiro-cpp)
 
-## 特性
+## 版本选择
+
+本仓库提供两个头文件，按需选用：
+
+| 头文件 | 标准 | 命名空间 | 说明 |
+|--------|------|----------|------|
+| **Random.hpp** | C++23 | `xoshiro` | 增强版：concepts 约束、便捷 API（`RandInt`/`RandReal`/`RandBool`/`RandElement`）、线程局部默认引擎、`discard(n)`、中文注释 |
+| **XoshiroCpp.hpp** | C++17 / C++20 | `XoshiroCpp` | 原始版：与上游 Xoshiro-cpp 保持一致，英文注释，无额外依赖 |
+
+> 如果你的编译器支持 C++23，推荐使用 `Random.hpp`；否则使用 `XoshiroCpp.hpp`。
+> 两者算法实现完全一致，输出序列相同（相同种子下）。
+
+## 特性（Random.hpp）
 
 - 满足 `std::uniform_random_bit_generator` 概念，可直接配合标准库 distribution / `std::shuffle` 使用
 - 全 `constexpr`，编译期可用
@@ -114,8 +126,12 @@ int main()
 
 ## 编译要求
 
-- C++23 编译器（GCC 14+ / Clang 18+ / MSVC 17.10+）
-- 无外部依赖，纯头文件
+| 头文件 | 最低标准 | 推荐编译器 |
+|--------|----------|------------|
+| Random.hpp | C++23 | GCC 14+ / Clang 18+ / MSVC 17.10+ |
+| XoshiroCpp.hpp | C++17 | GCC 9+ / Clang 10+ / MSVC 16.8+ |
+
+- 无外部依赖，纯头文件，复制即用
 
 ## 致谢
 
