@@ -99,6 +99,9 @@
 # include <string_view>
 # include <vector>
 # include <stdexcept>
+# include <ios>       // std::ios_base::failbit（流状态标志完整定义）
+# include <istream>   // std::basic_istream（operator>> 所需完整类型）
+# include <ostream>   // std::basic_ostream（operator<< 所需完整类型）
 # if defined(_MSC_VER) && (defined(__x86_64__) || defined(_M_X64))
 #	include <immintrin.h>
 # endif
