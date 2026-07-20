@@ -1,6 +1,7 @@
 // Generate known sequences for unit tests
 #include "Random.hpp"
 #include <cstdio>
+#include <cinttypes>
 
 int main()
 {
@@ -9,28 +10,28 @@ int main()
         xoshiro::Xoshiro256StarStar rng{ 12345 };
         std::printf("Xoshiro256StarStar seed=12345:\n");
         for (int i = 0; i < 5; ++i)
-            std::printf("  %llu\n", rng());
+            std::printf("  %" PRIu64 "\n", rng());
     }
     // Xoshiro256PlusPlus with seed 12345
     {
         xoshiro::Xoshiro256PlusPlus rng{ 12345 };
         std::printf("Xoshiro256PlusPlus seed=12345:\n");
         for (int i = 0; i < 5; ++i)
-            std::printf("  %llu\n", rng());
+            std::printf("  %" PRIu64 "\n", rng());
     }
     // Xoshiro256Plus with seed 12345
     {
         xoshiro::Xoshiro256Plus rng{ 12345 };
         std::printf("Xoshiro256Plus seed=12345:\n");
         for (int i = 0; i < 5; ++i)
-            std::printf("  %llu\n", rng());
+            std::printf("  %" PRIu64 "\n", rng());
     }
     // Xoroshiro128PlusPlus with seed 12345
     {
         xoshiro::Xoroshiro128PlusPlus rng{ 12345 };
         std::printf("Xoroshiro128PlusPlus seed=12345:\n");
         for (int i = 0; i < 5; ++i)
-            std::printf("  %llu\n", rng());
+            std::printf("  %" PRIu64 "\n", rng());
     }
     // Xoshiro128StarStar with seed 12345
     {
@@ -51,7 +52,7 @@ int main()
         xoshiro::SplitMix64 rng{ 12345 };
         std::printf("SplitMix64 seed=12345:\n");
         for (int i = 0; i < 5; ++i)
-            std::printf("  %llu\n", rng());
+            std::printf("  %" PRIu64 "\n", rng());
     }
     // RandIntCE
     {

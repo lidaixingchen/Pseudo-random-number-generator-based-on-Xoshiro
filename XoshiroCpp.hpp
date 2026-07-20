@@ -84,6 +84,7 @@
 # include <cassert>
 # include <string>
 # include <vector>
+# include <stdexcept>
 # if defined(_MSC_VER) && (defined(__x86_64__) || defined(_M_X64))
 #	include <immintrin.h>
 # endif
@@ -128,8 +129,8 @@ namespace XoshiroCpp
 		// 从 std::seed_seq 播种
 		template <class SeedSeq,
 			std::enable_if_t<!std::is_same_v<std::decay_t<SeedSeq>, SplitMix64>>* = nullptr>
-		[[nodiscard]]
-		explicit constexpr SplitMix64(SeedSeq& seq) noexcept;
+		XOSHIROCPP_NODISCARD_CXX20
+		explicit constexpr SplitMix64(SeedSeq& seq);
 
 		constexpr result_type operator()() noexcept;
 
@@ -186,8 +187,8 @@ namespace XoshiroCpp
 		// 从 std::seed_seq 播种
 		template <class SeedSeq,
 			std::enable_if_t<!std::is_same_v<std::decay_t<SeedSeq>, Xoshiro256Plus>>* = nullptr>
-		[[nodiscard]]
-		explicit constexpr Xoshiro256Plus(SeedSeq& seq) noexcept;
+		XOSHIROCPP_NODISCARD_CXX20
+		explicit constexpr Xoshiro256Plus(SeedSeq& seq);
 
 		XOSHIROCPP_NODISCARD_CXX20
 		explicit constexpr Xoshiro256Plus(state_type state) noexcept;
@@ -254,8 +255,8 @@ namespace XoshiroCpp
 		// 从 std::seed_seq 播种
 		template <class SeedSeq,
 			std::enable_if_t<!std::is_same_v<std::decay_t<SeedSeq>, Xoshiro256PlusPlus>>* = nullptr>
-		[[nodiscard]]
-		explicit constexpr Xoshiro256PlusPlus(SeedSeq& seq) noexcept;
+		XOSHIROCPP_NODISCARD_CXX20
+		explicit constexpr Xoshiro256PlusPlus(SeedSeq& seq);
 
 		XOSHIROCPP_NODISCARD_CXX20
 		explicit constexpr Xoshiro256PlusPlus(state_type state) noexcept;
@@ -322,8 +323,8 @@ namespace XoshiroCpp
 		// 从 std::seed_seq 播种
 		template <class SeedSeq,
 			std::enable_if_t<!std::is_same_v<std::decay_t<SeedSeq>, Xoshiro256StarStar>>* = nullptr>
-		[[nodiscard]]
-		explicit constexpr Xoshiro256StarStar(SeedSeq& seq) noexcept;
+		XOSHIROCPP_NODISCARD_CXX20
+		explicit constexpr Xoshiro256StarStar(SeedSeq& seq);
 
 		XOSHIROCPP_NODISCARD_CXX20
 		explicit constexpr Xoshiro256StarStar(state_type state) noexcept;
@@ -390,8 +391,8 @@ namespace XoshiroCpp
 		// 从 std::seed_seq 播种
 		template <class SeedSeq,
 			std::enable_if_t<!std::is_same_v<std::decay_t<SeedSeq>, Xoroshiro128Plus>>* = nullptr>
-		[[nodiscard]]
-		explicit constexpr Xoroshiro128Plus(SeedSeq& seq) noexcept;
+		XOSHIROCPP_NODISCARD_CXX20
+		explicit constexpr Xoroshiro128Plus(SeedSeq& seq);
 
 		XOSHIROCPP_NODISCARD_CXX20
 		explicit constexpr Xoroshiro128Plus(state_type state) noexcept;
@@ -458,8 +459,8 @@ namespace XoshiroCpp
 		// 从 std::seed_seq 播种
 		template <class SeedSeq,
 			std::enable_if_t<!std::is_same_v<std::decay_t<SeedSeq>, Xoroshiro128PlusPlus>>* = nullptr>
-		[[nodiscard]]
-		explicit constexpr Xoroshiro128PlusPlus(SeedSeq& seq) noexcept;
+		XOSHIROCPP_NODISCARD_CXX20
+		explicit constexpr Xoroshiro128PlusPlus(SeedSeq& seq);
 
 		XOSHIROCPP_NODISCARD_CXX20
 		explicit constexpr Xoroshiro128PlusPlus(state_type state) noexcept;
@@ -526,8 +527,8 @@ namespace XoshiroCpp
 		// 从 std::seed_seq 播种
 		template <class SeedSeq,
 			std::enable_if_t<!std::is_same_v<std::decay_t<SeedSeq>, Xoroshiro128StarStar>>* = nullptr>
-		[[nodiscard]]
-		explicit constexpr Xoroshiro128StarStar(SeedSeq& seq) noexcept;
+		XOSHIROCPP_NODISCARD_CXX20
+		explicit constexpr Xoroshiro128StarStar(SeedSeq& seq);
 
 		XOSHIROCPP_NODISCARD_CXX20
 		explicit constexpr Xoroshiro128StarStar(state_type state) noexcept;
@@ -594,8 +595,8 @@ namespace XoshiroCpp
 		// 从 std::seed_seq 播种
 		template <class SeedSeq,
 			std::enable_if_t<!std::is_same_v<std::decay_t<SeedSeq>, Xoshiro128Plus>>* = nullptr>
-		[[nodiscard]]
-		explicit constexpr Xoshiro128Plus(SeedSeq& seq) noexcept;
+		XOSHIROCPP_NODISCARD_CXX20
+		explicit constexpr Xoshiro128Plus(SeedSeq& seq);
 
 		XOSHIROCPP_NODISCARD_CXX20
 		explicit constexpr Xoshiro128Plus(state_type state) noexcept;
@@ -662,8 +663,8 @@ namespace XoshiroCpp
 		// 从 std::seed_seq 播种
 		template <class SeedSeq,
 			std::enable_if_t<!std::is_same_v<std::decay_t<SeedSeq>, Xoshiro128PlusPlus>>* = nullptr>
-		[[nodiscard]]
-		explicit constexpr Xoshiro128PlusPlus(SeedSeq& seq) noexcept;
+		XOSHIROCPP_NODISCARD_CXX20
+		explicit constexpr Xoshiro128PlusPlus(SeedSeq& seq);
 
 		XOSHIROCPP_NODISCARD_CXX20
 		explicit constexpr Xoshiro128PlusPlus(state_type state) noexcept;
@@ -730,8 +731,8 @@ namespace XoshiroCpp
 		// 从 std::seed_seq 播种
 		template <class SeedSeq,
 			std::enable_if_t<!std::is_same_v<std::decay_t<SeedSeq>, Xoshiro128StarStar>>* = nullptr>
-		[[nodiscard]]
-		explicit constexpr Xoshiro128StarStar(SeedSeq& seq) noexcept;
+		XOSHIROCPP_NODISCARD_CXX20
+		explicit constexpr Xoshiro128StarStar(SeedSeq& seq);
 
 		XOSHIROCPP_NODISCARD_CXX20
 		explicit constexpr Xoshiro128StarStar(state_type state) noexcept;
@@ -797,8 +798,8 @@ namespace XoshiroCpp
 		// 从 std::seed_seq 播种
 		template <class SeedSeq,
 			std::enable_if_t<!std::is_same_v<std::decay_t<SeedSeq>, Xoroshiro64Star>>* = nullptr>
-		[[nodiscard]]
-		explicit constexpr Xoroshiro64Star(SeedSeq& seq) noexcept;
+		XOSHIROCPP_NODISCARD_CXX20
+		explicit constexpr Xoroshiro64Star(SeedSeq& seq);
 
 		XOSHIROCPP_NODISCARD_CXX20
 			explicit constexpr Xoroshiro64Star(state_type state) noexcept;
@@ -853,8 +854,8 @@ namespace XoshiroCpp
 		// 从 std::seed_seq 播种
 		template <class SeedSeq,
 			std::enable_if_t<!std::is_same_v<std::decay_t<SeedSeq>, Xoroshiro64StarStar>>* = nullptr>
-		[[nodiscard]]
-		explicit constexpr Xoroshiro64StarStar(SeedSeq& seq) noexcept;
+		XOSHIROCPP_NODISCARD_CXX20
+		explicit constexpr Xoroshiro64StarStar(SeedSeq& seq);
 
 		XOSHIROCPP_NODISCARD_CXX20
 			explicit constexpr Xoroshiro64StarStar(state_type state) noexcept;
@@ -909,8 +910,8 @@ namespace XoshiroCpp
 		// 从 std::seed_seq 播种
 		template <class SeedSeq,
 			std::enable_if_t<!std::is_same_v<std::decay_t<SeedSeq>, SFC64>>* = nullptr>
-		[[nodiscard]]
-		explicit constexpr SFC64(SeedSeq& seq) noexcept;
+		XOSHIROCPP_NODISCARD_CXX20
+		explicit constexpr SFC64(SeedSeq& seq);
 
 		[[nodiscard]]
 		explicit constexpr SFC64(state_type state) noexcept;
@@ -969,8 +970,8 @@ namespace XoshiroCpp
 		// 从 std::seed_seq 播种
 		template <class SeedSeq,
 			std::enable_if_t<!std::is_same_v<std::decay_t<SeedSeq>, RomuDuoJr>>* = nullptr>
-		[[nodiscard]]
-		explicit constexpr RomuDuoJr(SeedSeq& seq) noexcept;
+		XOSHIROCPP_NODISCARD_CXX20
+		explicit constexpr RomuDuoJr(SeedSeq& seq);
 
 		[[nodiscard]]
 		explicit constexpr RomuDuoJr(state_type state) noexcept;
@@ -1090,7 +1091,7 @@ namespace XoshiroCpp
 		: m_state(state) {}
 
 	template <class SeedSeq, std::enable_if_t<!std::is_same_v<std::decay_t<SeedSeq>, SplitMix64>>*>
-	inline constexpr SplitMix64::SplitMix64(SeedSeq& seq) noexcept
+	inline constexpr SplitMix64::SplitMix64(SeedSeq& seq)
 	{
 		std::array<std::uint32_t, 2> seeds;
 		seq.generate(seeds.begin(), seeds.end());
@@ -1151,7 +1152,7 @@ namespace XoshiroCpp
 		: m_state(SplitMix64{ seed }.generateSeedSequence<4>()) {}
 
 	template <class SeedSeq, std::enable_if_t<!std::is_same_v<std::decay_t<SeedSeq>, Xoshiro256Plus>>*>
-	inline constexpr Xoshiro256Plus::Xoshiro256Plus(SeedSeq& seq) noexcept
+	inline constexpr Xoshiro256Plus::Xoshiro256Plus(SeedSeq& seq)
 	{
 		std::array<std::uint32_t, 8> seeds;
 		seq.generate(seeds.begin(), seeds.end());
@@ -1188,11 +1189,11 @@ namespace XoshiroCpp
 		std::uint64_t s2 = 0;
 		std::uint64_t s3 = 0;
 
-		for (std::uint64_t jump : JUMP)
+		for (std::uint64_t j : JUMP)
 		{
 			for (int b = 0; b < 64; ++b)
 			{
-				if (jump & UINT64_C(1) << b)
+				if (j & UINT64_C(1) << b)
 				{
 					s0 ^= m_state[0];
 					s1 ^= m_state[1];
@@ -1218,11 +1219,11 @@ namespace XoshiroCpp
 		std::uint64_t s2 = 0;
 		std::uint64_t s3 = 0;
 
-		for (std::uint64_t jump : LONG_JUMP)
+		for (std::uint64_t j : LONG_JUMP)
 		{
 			for (int b = 0; b < 64; ++b)
 			{
-				if (jump & UINT64_C(1) << b)
+				if (j & UINT64_C(1) << b)
 				{
 					s0 ^= m_state[0];
 					s1 ^= m_state[1];
@@ -1273,7 +1274,7 @@ namespace XoshiroCpp
 		: m_state(SplitMix64{ seed }.generateSeedSequence<4>()) {}
 
 	template <class SeedSeq, std::enable_if_t<!std::is_same_v<std::decay_t<SeedSeq>, Xoshiro256PlusPlus>>*>
-	inline constexpr Xoshiro256PlusPlus::Xoshiro256PlusPlus(SeedSeq& seq) noexcept
+	inline constexpr Xoshiro256PlusPlus::Xoshiro256PlusPlus(SeedSeq& seq)
 	{
 		std::array<std::uint32_t, 8> seeds;
 		seq.generate(seeds.begin(), seeds.end());
@@ -1310,11 +1311,11 @@ namespace XoshiroCpp
 		std::uint64_t s2 = 0;
 		std::uint64_t s3 = 0;
 
-		for (std::uint64_t jump : JUMP)
+		for (std::uint64_t j : JUMP)
 		{
 			for (int b = 0; b < 64; ++b)
 			{
-				if (jump & UINT64_C(1) << b)
+				if (j & UINT64_C(1) << b)
 				{
 					s0 ^= m_state[0];
 					s1 ^= m_state[1];
@@ -1340,11 +1341,11 @@ namespace XoshiroCpp
 		std::uint64_t s2 = 0;
 		std::uint64_t s3 = 0;
 
-		for (std::uint64_t jump : LONG_JUMP)
+		for (std::uint64_t j : LONG_JUMP)
 		{
 			for (int b = 0; b < 64; ++b)
 			{
-				if (jump & UINT64_C(1) << b)
+				if (j & UINT64_C(1) << b)
 				{
 					s0 ^= m_state[0];
 					s1 ^= m_state[1];
@@ -1395,7 +1396,7 @@ namespace XoshiroCpp
 		: m_state(SplitMix64{ seed }.generateSeedSequence<4>()) {}
 
 	template <class SeedSeq, std::enable_if_t<!std::is_same_v<std::decay_t<SeedSeq>, Xoshiro256StarStar>>*>
-	inline constexpr Xoshiro256StarStar::Xoshiro256StarStar(SeedSeq& seq) noexcept
+	inline constexpr Xoshiro256StarStar::Xoshiro256StarStar(SeedSeq& seq)
 	{
 		std::array<std::uint32_t, 8> seeds;
 		seq.generate(seeds.begin(), seeds.end());
@@ -1432,11 +1433,11 @@ namespace XoshiroCpp
 		std::uint64_t s2 = 0;
 		std::uint64_t s3 = 0;
 
-		for (std::uint64_t jump : JUMP)
+		for (std::uint64_t j : JUMP)
 		{
 			for (int b = 0; b < 64; ++b)
 			{
-				if (jump & UINT64_C(1) << b)
+				if (j & UINT64_C(1) << b)
 				{
 					s0 ^= m_state[0];
 					s1 ^= m_state[1];
@@ -1462,11 +1463,11 @@ namespace XoshiroCpp
 		std::uint64_t s2 = 0;
 		std::uint64_t s3 = 0;
 
-		for (std::uint64_t jump : LONG_JUMP)
+		for (std::uint64_t j : LONG_JUMP)
 		{
 			for (int b = 0; b < 64; ++b)
 			{
-				if (jump & UINT64_C(1) << b)
+				if (j & UINT64_C(1) << b)
 				{
 					s0 ^= m_state[0];
 					s1 ^= m_state[1];
@@ -1517,7 +1518,7 @@ namespace XoshiroCpp
 		: m_state(SplitMix64{ seed }.generateSeedSequence<2>()) {}
 
 	template <class SeedSeq, std::enable_if_t<!std::is_same_v<std::decay_t<SeedSeq>, Xoroshiro128Plus>>*>
-	inline constexpr Xoroshiro128Plus::Xoroshiro128Plus(SeedSeq& seq) noexcept
+	inline constexpr Xoroshiro128Plus::Xoroshiro128Plus(SeedSeq& seq)
 	{
 		std::array<std::uint32_t, 4> seeds;
 		seq.generate(seeds.begin(), seeds.end());
@@ -1550,11 +1551,11 @@ namespace XoshiroCpp
 		std::uint64_t s0 = 0;
 		std::uint64_t s1 = 0;
 
-		for (std::uint64_t jump : JUMP)
+		for (std::uint64_t j : JUMP)
 		{
 			for (int b = 0; b < 64; ++b)
 			{
-				if (jump & UINT64_C(1) << b)
+				if (j & UINT64_C(1) << b)
 				{
 					s0 ^= m_state[0];
 					s1 ^= m_state[1];
@@ -1574,11 +1575,11 @@ namespace XoshiroCpp
 		std::uint64_t s0 = 0;
 		std::uint64_t s1 = 0;
 
-		for (std::uint64_t jump : LONG_JUMP)
+		for (std::uint64_t j : LONG_JUMP)
 		{
 			for (int b = 0; b < 64; ++b)
 			{
-				if (jump & UINT64_C(1) << b)
+				if (j & UINT64_C(1) << b)
 				{
 					s0 ^= m_state[0];
 					s1 ^= m_state[1];
@@ -1625,7 +1626,7 @@ namespace XoshiroCpp
 		: m_state(SplitMix64{ seed }.generateSeedSequence<2>()) {}
 
 	template <class SeedSeq, std::enable_if_t<!std::is_same_v<std::decay_t<SeedSeq>, Xoroshiro128PlusPlus>>*>
-	inline constexpr Xoroshiro128PlusPlus::Xoroshiro128PlusPlus(SeedSeq& seq) noexcept
+	inline constexpr Xoroshiro128PlusPlus::Xoroshiro128PlusPlus(SeedSeq& seq)
 	{
 		std::array<std::uint32_t, 4> seeds;
 		seq.generate(seeds.begin(), seeds.end());
@@ -1658,11 +1659,11 @@ namespace XoshiroCpp
 		std::uint64_t s0 = 0;
 		std::uint64_t s1 = 0;
 
-		for (std::uint64_t jump : JUMP)
+		for (std::uint64_t j : JUMP)
 		{
 			for (int b = 0; b < 64; ++b)
 			{
-				if (jump & UINT64_C(1) << b)
+				if (j & UINT64_C(1) << b)
 				{
 					s0 ^= m_state[0];
 					s1 ^= m_state[1];
@@ -1682,11 +1683,11 @@ namespace XoshiroCpp
 		std::uint64_t s0 = 0;
 		std::uint64_t s1 = 0;
 
-		for (std::uint64_t jump : LONG_JUMP)
+		for (std::uint64_t j : LONG_JUMP)
 		{
 			for (int b = 0; b < 64; ++b)
 			{
-				if (jump & UINT64_C(1) << b)
+				if (j & UINT64_C(1) << b)
 				{
 					s0 ^= m_state[0];
 					s1 ^= m_state[1];
@@ -1733,7 +1734,7 @@ namespace XoshiroCpp
 		: m_state(SplitMix64{ seed }.generateSeedSequence<2>()) {}
 
 	template <class SeedSeq, std::enable_if_t<!std::is_same_v<std::decay_t<SeedSeq>, Xoroshiro128StarStar>>*>
-	inline constexpr Xoroshiro128StarStar::Xoroshiro128StarStar(SeedSeq& seq) noexcept
+	inline constexpr Xoroshiro128StarStar::Xoroshiro128StarStar(SeedSeq& seq)
 	{
 		std::array<std::uint32_t, 4> seeds;
 		seq.generate(seeds.begin(), seeds.end());
@@ -1766,11 +1767,11 @@ namespace XoshiroCpp
 		std::uint64_t s0 = 0;
 		std::uint64_t s1 = 0;
 
-		for (std::uint64_t jump : JUMP)
+		for (std::uint64_t j : JUMP)
 		{
 			for (int b = 0; b < 64; ++b)
 			{
-				if (jump & UINT64_C(1) << b)
+				if (j & UINT64_C(1) << b)
 				{
 					s0 ^= m_state[0];
 					s1 ^= m_state[1];
@@ -1790,11 +1791,11 @@ namespace XoshiroCpp
 		std::uint64_t s0 = 0;
 		std::uint64_t s1 = 0;
 
-		for (std::uint64_t jump : LONG_JUMP)
+		for (std::uint64_t j : LONG_JUMP)
 		{
 			for (int b = 0; b < 64; ++b)
 			{
-				if (jump & UINT64_C(1) << b)
+				if (j & UINT64_C(1) << b)
 				{
 					s0 ^= m_state[0];
 					s1 ^= m_state[1];
@@ -1849,7 +1850,7 @@ namespace XoshiroCpp
 	}
 
 	template <class SeedSeq, std::enable_if_t<!std::is_same_v<std::decay_t<SeedSeq>, Xoshiro128Plus>>*>
-	inline constexpr Xoshiro128Plus::Xoshiro128Plus(SeedSeq& seq) noexcept
+	inline constexpr Xoshiro128Plus::Xoshiro128Plus(SeedSeq& seq)
 	{
 		std::array<std::uint32_t, 4> seeds;
 		seq.generate(seeds.begin(), seeds.end());
@@ -1885,11 +1886,11 @@ namespace XoshiroCpp
 		std::uint32_t s2 = 0;
 		std::uint32_t s3 = 0;
 
-		for (std::uint32_t jump : JUMP)
+		for (std::uint32_t j : JUMP)
 		{
 			for (int b = 0; b < 32; ++b)
 			{
-				if (jump & UINT32_C(1) << b)
+				if (j & UINT32_C(1) << b)
 				{
 					s0 ^= m_state[0];
 					s1 ^= m_state[1];
@@ -1915,11 +1916,11 @@ namespace XoshiroCpp
 		std::uint32_t s2 = 0;
 		std::uint32_t s3 = 0;
 
-		for (std::uint32_t jump : LONG_JUMP)
+		for (std::uint32_t j : LONG_JUMP)
 		{
 			for (int b = 0; b < 32; ++b)
 			{
-				if (jump & UINT32_C(1) << b)
+				if (j & UINT32_C(1) << b)
 				{
 					s0 ^= m_state[0];
 					s1 ^= m_state[1];
@@ -1978,7 +1979,7 @@ namespace XoshiroCpp
 	}
 
 	template <class SeedSeq, std::enable_if_t<!std::is_same_v<std::decay_t<SeedSeq>, Xoshiro128PlusPlus>>*>
-	inline constexpr Xoshiro128PlusPlus::Xoshiro128PlusPlus(SeedSeq& seq) noexcept
+	inline constexpr Xoshiro128PlusPlus::Xoshiro128PlusPlus(SeedSeq& seq)
 	{
 		std::array<std::uint32_t, 4> seeds;
 		seq.generate(seeds.begin(), seeds.end());
@@ -2014,11 +2015,11 @@ namespace XoshiroCpp
 		std::uint32_t s2 = 0;
 		std::uint32_t s3 = 0;
 
-		for (std::uint32_t jump : JUMP)
+		for (std::uint32_t j : JUMP)
 		{
 			for (int b = 0; b < 32; ++b)
 			{
-				if (jump & UINT32_C(1) << b)
+				if (j & UINT32_C(1) << b)
 				{
 					s0 ^= m_state[0];
 					s1 ^= m_state[1];
@@ -2044,11 +2045,11 @@ namespace XoshiroCpp
 		std::uint32_t s2 = 0;
 		std::uint32_t s3 = 0;
 
-		for (std::uint32_t jump : LONG_JUMP)
+		for (std::uint32_t j : LONG_JUMP)
 		{
 			for (int b = 0; b < 32; ++b)
 			{
-				if (jump & UINT32_C(1) << b)
+				if (j & UINT32_C(1) << b)
 				{
 					s0 ^= m_state[0];
 					s1 ^= m_state[1];
@@ -2107,7 +2108,7 @@ namespace XoshiroCpp
 	}
 
 	template <class SeedSeq, std::enable_if_t<!std::is_same_v<std::decay_t<SeedSeq>, Xoshiro128StarStar>>*>
-	inline constexpr Xoshiro128StarStar::Xoshiro128StarStar(SeedSeq& seq) noexcept
+	inline constexpr Xoshiro128StarStar::Xoshiro128StarStar(SeedSeq& seq)
 	{
 		std::array<std::uint32_t, 4> seeds;
 		seq.generate(seeds.begin(), seeds.end());
@@ -2143,11 +2144,11 @@ namespace XoshiroCpp
 		std::uint32_t s2 = 0;
 		std::uint32_t s3 = 0;
 
-		for (std::uint32_t jump : JUMP)
+		for (std::uint32_t j : JUMP)
 		{
 			for (int b = 0; b < 32; ++b)
 			{
-				if (jump & UINT32_C(1) << b)
+				if (j & UINT32_C(1) << b)
 				{
 					s0 ^= m_state[0];
 					s1 ^= m_state[1];
@@ -2173,11 +2174,11 @@ namespace XoshiroCpp
 		std::uint32_t s2 = 0;
 		std::uint32_t s3 = 0;
 
-		for (std::uint32_t jump : LONG_JUMP)
+		for (std::uint32_t j : LONG_JUMP)
 		{
 			for (int b = 0; b < 32; ++b)
 			{
-				if (jump & UINT32_C(1) << b)
+				if (j & UINT32_C(1) << b)
 				{
 					s0 ^= m_state[0];
 					s1 ^= m_state[1];
@@ -2236,7 +2237,7 @@ namespace XoshiroCpp
 	}
 
 	template <class SeedSeq, std::enable_if_t<!std::is_same_v<std::decay_t<SeedSeq>, Xoroshiro64Star>>*>
-	inline constexpr Xoroshiro64Star::Xoroshiro64Star(SeedSeq& seq) noexcept
+	inline constexpr Xoroshiro64Star::Xoroshiro64Star(SeedSeq& seq)
 	{
 		std::array<std::uint32_t, 2> seeds;
 		seq.generate(seeds.begin(), seeds.end());
@@ -2306,7 +2307,7 @@ namespace XoshiroCpp
 	}
 
 	template <class SeedSeq, std::enable_if_t<!std::is_same_v<std::decay_t<SeedSeq>, Xoroshiro64StarStar>>*>
-	inline constexpr Xoroshiro64StarStar::Xoroshiro64StarStar(SeedSeq& seq) noexcept
+	inline constexpr Xoroshiro64StarStar::Xoroshiro64StarStar(SeedSeq& seq)
 	{
 		std::array<std::uint32_t, 2> seeds;
 		seq.generate(seeds.begin(), seeds.end());
@@ -2376,14 +2377,18 @@ namespace XoshiroCpp
 	}
 
 	template <class SeedSeq, std::enable_if_t<!std::is_same_v<std::decay_t<SeedSeq>, SFC64>>*>
-	inline constexpr SFC64::SFC64(SeedSeq& seq) noexcept
-		: m_counter(1)
+	inline constexpr SFC64::SFC64(SeedSeq& seq)
+		: m_a(0), m_b(0), m_c(0), m_counter(1)
 	{
 		std::array<std::uint32_t, 8> seeds;
 		seq.generate(seeds.begin(), seeds.end());
 		m_a = (static_cast<std::uint64_t>(seeds[0]) << 32) | seeds[1];
 		m_b = (static_cast<std::uint64_t>(seeds[2]) << 32) | seeds[3];
 		m_c = (static_cast<std::uint64_t>(seeds[4]) << 32) | seeds[5];
+		// 全零状态会导致输出可预测，强制修正
+		if ((m_a | m_b | m_c) == 0) m_a = 0x9E3779B97F4A7C15ULL;
+		// 与种子构造函数一致：12 轮预热
+		for (int i = 0; i < 12; ++i) { operator()(); }
 	}
 
 	inline constexpr SFC64::SFC64(const state_type state) noexcept
@@ -2441,7 +2446,7 @@ namespace XoshiroCpp
 	}
 
 	template <class SeedSeq, std::enable_if_t<!std::is_same_v<std::decay_t<SeedSeq>, RomuDuoJr>>*>
-	inline constexpr RomuDuoJr::RomuDuoJr(SeedSeq& seq) noexcept
+	inline constexpr RomuDuoJr::RomuDuoJr(SeedSeq& seq)
 	{
 		std::array<std::uint32_t, 4> seeds;
 		seq.generate(seeds.begin(), seeds.end());
@@ -2499,7 +2504,15 @@ namespace XoshiroCpp
 	// 从同一种子创建第 streamId 个不重叠子序列的引擎
 	// 每个流之间间隔 2^128 步（xoshiro256）或 2^64 步（xoroshiro128/xoshiro128）
 	// 注意：Xoroshiro64 系列无 jump 函数，不支持多流
-	template <class Engine>
+	namespace detail
+	{
+		template <class Engine, class = void>
+		struct HasJump : std::false_type {};
+		template <class Engine>
+		struct HasJump<Engine, std::void_t<decltype(std::declval<Engine&>().jump())>> : std::true_type {};
+	}
+
+	template <class Engine, std::enable_if_t<detail::HasJump<Engine>::value>* = nullptr>
 	[[nodiscard]]
 	inline constexpr Engine MakeStreamEngine(std::uint64_t streamId, std::uint64_t seed = DefaultSeed)
 	{
@@ -2539,13 +2552,13 @@ namespace XoshiroCpp
 	// 重置默认引擎的种子（用于测试复现）
 	inline void Reseed(std::uint64_t seed)
 	{
-		DefaultEngine().deserialize(Xoshiro256StarStar{ seed }.serialize());
+		DefaultEngine() = Xoshiro256StarStar{ seed };
 	}
 
 	// 重置为真随机种子
 	inline void ReseedRandom()
 	{
-		DefaultEngine().deserialize(Xoshiro256StarStar{ RandomSeed() }.serialize());
+		DefaultEngine() = Xoshiro256StarStar{ RandomSeed() };
 	}
 
 	// 生成 [min, max] 范围内的随机整数
@@ -2587,6 +2600,8 @@ namespace XoshiroCpp
 	inline decltype(auto) RandElement(Container&& c)
 	{
 		using Size = typename std::remove_reference_t<Container>::size_type;
+		if (c.empty())
+			throw std::invalid_argument("RandElement: empty container");
 		return c[RandInt<Size>(static_cast<Size>(c.size() - 1))];
 	}
 
@@ -2668,6 +2683,7 @@ namespace XoshiroCpp
 	{
 		std::vector<std::size_t> perm(n);
 		for (std::size_t i = 0; i < n; ++i) perm[i] = i;
+		if (n < 2) return perm;
 		auto& rng = DefaultEngine();
 		for (std::size_t i = n - 1; i > 0; --i)
 		{
@@ -2684,6 +2700,8 @@ namespace XoshiroCpp
 	[[nodiscard]]
 	inline std::string RandString(std::size_t length, const std::string& charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
 	{
+		if (charset.empty())
+			throw std::invalid_argument("RandString: charset is empty");
 		std::string result(length, '\0');
 		auto& rng = DefaultEngine();
 		std::uniform_int_distribution<std::size_t> dist(0, charset.size() - 1);

@@ -10,4 +10,5 @@ out/
 # IDE
 .vs/
 .vscode/
+.trae/
 *.user

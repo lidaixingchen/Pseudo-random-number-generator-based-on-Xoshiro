@@ -61,16 +61,6 @@ static double BenchmarkRaw(const char* name)
 //
 //----------------------------------------------------------------------------------------
 
-// 检测引擎是否拥有 jump() 成员函数
-template <class Engine, class = void>
-struct HasJump : std::false_type {};
-
-template <class Engine>
-struct HasJump<Engine, std::void_t<decltype(std::declval<Engine&>().jump())>> : std::true_type {};
-
-template <class Engine>
-static constexpr bool HasJumpV = HasJump<Engine>::value;
-
 // 测量 jump() 调用开销（仅对支持 jump 的引擎有效）
 template <class Engine>
 static double BenchmarkJump(const char* name)
