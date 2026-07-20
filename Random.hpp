@@ -3,7 +3,6 @@
 //	Random.hpp — 基于 Xoshiro 的伪随机数生成器封装库（C++23）
 //
 //	原始算法：David Blackman & Sebastiano Vigna (http://prng.di.unimi.it/)
-//	原始 C++ 封装：Ryo Suzuki <reputeless@gmail.com> (Xoshiro-cpp)
 //
 //========================================================================================
 //
@@ -19,6 +18,16 @@
 //		std::vector<int> v = {10, 20, 30, 40};
 //		auto& elem = xoshiro::RandElement(v);         // 随机取一个元素
 //
+//	扩展 API
+//
+//		auto sample = xoshiro::RandSample(v, 2);      // 无放回抽样 2 个
+//		auto perm   = xoshiro::RandPermutation(10);   // [0,10) 随机排列
+//		auto token  = xoshiro::RandString(16);        // 16 位随机字符串
+//		auto uuid   = xoshiro::RandUUID();            // UUID v4
+//		auto byte   = xoshiro::RandBits<8>();         // [0, 256) 随机整数
+//		auto exp    = xoshiro::RandExp(2.0);          // 指数分布 λ=2
+//		auto poi    = xoshiro::RandPoisson(5.0);      // 泊松分布 μ=5
+//
 //	手动管理引擎
 //
 //		// 用真随机种子创建引擎
@@ -31,10 +40,20 @@
 //		std::normal_distribution<double> norm(0.0, 1.0);
 //		double sample = norm(rng);
 //
+//	多流并行
+//
+//		auto s0 = xoshiro::MakeStreamEngine<xoshiro::Xoshiro256StarStar>(0);
+//		auto s1 = xoshiro::MakeStreamEngine<xoshiro::Xoshiro256StarStar>(1);
+//		// 各流间隔 2^128 步，互不重叠
+//
+//	编译期随机（constexpr）
+//
+//		constexpr int v = xoshiro::RandIntCE(0, 100);
+//		constexpr auto shuffled = xoshiro::ShuffledArray<int, 5>({1,2,3,4,5});
+//
 //	序列化 / 反序列化（保存和恢复状态）
 //
 //		auto state = rng.serialize();
-//		// ... 稍后恢复 ...
 //		rng.deserialize(state);
 //
 //	跳跃（并行计算中生成不重叠子序列）
@@ -62,6 +81,8 @@
 //		Xoroshiro64StarStar    32-bit  2^64-1      8B    极端内存受限
 //		Xoroshiro64Star        32-bit  2^64-1      8B    极端内存受限，最快
 //		SplitMix64             64-bit  2^64        8B    种子扩展 / 哈希，非通用 PRNG
+//		SFC64                  64-bit  >= 2^64    32B    速度极快，通过 PractRand
+//		RomuDuoJr              64-bit  >= 2^51    16B    极简极快，非关键模拟
 //
 //----------------------------------------------------------------------------------------
 

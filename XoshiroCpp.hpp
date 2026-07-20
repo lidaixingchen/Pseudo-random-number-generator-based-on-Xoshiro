@@ -1,27 +1,76 @@
 //----------------------------------------------------------------------------------------
 //
-//	Xoshiro-cpp
-//	适用于 C++17 / C++20 的 Xoshiro 伪随机数生成器封装库
+//	XoshiroCpp.hpp — 基于 Xoshiro 的伪随机数生成器封装库（C++17 / C++20）
 //
-//	版权所有 (C) 2020 Ryo Suzuki <reputeless@gmail.com>
+//	原始算法：David Blackman & Sebastiano Vigna (http://prng.di.unimi.it/)
 //
-//	特此免费授予任何获得本软件副本的个人许可，
-//	可处理本软件及相关文档文件（以下简称“软件”），
-//	且不受限制，包括但不限于以下权利：
-//	使用、复制、修改、合并、发布、分发、再许可和/或销售
-//	软件副本，并允许获得软件的人这样做，
-//	但须符合以下条件：
-//	
-//	上述版权声明和本许可声明应包含在
-//	软件的所有副本或主要部分中。
-//	
-//	本软件按“原样”提供，不附带任何明示或默示担保，
-//	包括但不限于适销性担保，
-//	特定用途适用性和不侵权担保。在任何情况下，
-//	作者或版权持有人均不对任何索赔、损害或其他责任承担责任，
-//	无论该等责任源于合同、侵权或其他行为，
-//	不论由软件或软件的使用或其他交易引起，
-//	均不承担责任。
+//========================================================================================
+//
+//	快速上手
+//
+//		#include “XoshiroCpp.hpp”
+//
+//		// 最简用法：直接调用便捷函数（内部使用线程局部 Xoshiro256StarStar）
+//		int   dice  = XoshiroCpp::RandInt(1, 6);     // [1, 6] 闭区间整数
+//		double coin = XoshiroCpp::RandReal();         // [0.0, 1.0) 浮点数
+//		bool  flag  = XoshiroCpp::RandBool(0.3);      // 30% 概率为 true
+//
+//		std::vector<int> v = {10, 20, 30, 40};
+//		auto& elem = XoshiroCpp::RandElement(v);      // 随机取一个元素
+//
+//	扩展 API
+//
+//		auto sample = XoshiroCpp::RandSample(v, 2);   // 无放回抽样 2 个
+//		auto perm   = XoshiroCpp::RandPermutation(10);// [0,10) 随机排列
+//		auto token  = XoshiroCpp::RandString(16);     // 16 位随机字符串
+//		auto uuid   = XoshiroCpp::RandUUID();         // UUID v4
+//		auto byte   = XoshiroCpp::RandBits<8>();      // [0, 256) 随机整数
+//		auto exp    = XoshiroCpp::RandExp(2.0);       // 指数分布 λ=2
+//		auto poi    = XoshiroCpp::RandPoisson(5.0);   // 泊松分布 μ=5
+//
+//	手动管理引擎
+//
+//		XoshiroCpp::Xoshiro256StarStar rng{ XoshiroCpp::RandomSeed() };
+//		int val = XoshiroCpp::RandInt(rng, 0, 99);
+//
+//		// 配合标准库 distribution（满足 UniformRandomBitGenerator）
+//		std::normal_distribution<double> norm(0.0, 1.0);
+//		double sample = norm(rng);
+//
+//	多流并行
+//
+//		auto s0 = XoshiroCpp::MakeStreamEngine<XoshiroCpp::Xoshiro256StarStar>(0);
+//		auto s1 = XoshiroCpp::MakeStreamEngine<XoshiroCpp::Xoshiro256StarStar>(1);
+//
+//	序列化 / 反序列化
+//
+//		auto state = rng.serialize();
+//		rng.deserialize(state);
+//
+//	跳跃
+//
+//		rng.jump();      // 前进 2^128 步（xoshiro256 系列）
+//		rng.longJump();  // 前进 2^192 步
+//		rng.discard(1000);
+//
+//	引擎选择指南
+//
+//		引擎                    输出   周期        状态   适用场景
+//		─────────────────────────────────────────────────────────────
+//		Xoshiro256StarStar     64-bit  2^256-1    32B    通用首选，统计质量最优
+//		Xoshiro256PlusPlus     64-bit  2^256-1    32B    通用，略快于 **
+//		Xoshiro256Plus         64-bit  2^256-1    32B    最快，低位质量稍弱
+//		Xoroshiro128PlusPlus   64-bit  2^128-1    16B    内存受限场景
+//		Xoroshiro128StarStar   64-bit  2^128-1    16B    同上，统计更优
+//		Xoroshiro128Plus       64-bit  2^128-1    16B    同上，最快
+//		Xoshiro128PlusPlus     32-bit  2^128-1    16B    32 位平台
+//		Xoshiro128StarStar     32-bit  2^128-1    16B    32 位平台，统计更优
+//		Xoshiro128Plus         32-bit  2^128-1    16B    32 位平台，最快
+//		Xoroshiro64StarStar    32-bit  2^64-1      8B    极端内存受限
+//		Xoroshiro64Star        32-bit  2^64-1      8B    极端内存受限，最快
+//		SplitMix64             64-bit  2^64        8B    种子扩展 / 哈希，非通用 PRNG
+//		SFC64                  64-bit  >= 2^64    32B    速度极快，通过 PractRand
+//		RomuDuoJr              64-bit  >= 2^51    16B    极简极快，非关键模拟
 //
 //----------------------------------------------------------------------------------------
 
