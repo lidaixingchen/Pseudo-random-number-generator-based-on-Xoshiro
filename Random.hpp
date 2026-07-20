@@ -1,0 +1,2018 @@
+//----------------------------------------------------------------------------------------
+//
+//	Random.hpp — 基于 Xoshiro 的伪随机数生成器封装库（C++23）
+//
+//	原始算法：David Blackman & Sebastiano Vigna (http://prng.di.unimi.it/)
+//	原始 C++ 封装：Ryo Suzuki <reputeless@gmail.com> (Xoshiro-cpp)
+//
+//========================================================================================
+//
+//	快速上手
+//
+//		#include "Random.hpp"
+//
+//		// 最简用法：直接调用便捷函数（内部使用线程局部 Xoshiro256StarStar）
+//		int   dice  = xoshiro::RandInt(1, 6);        // [1, 6] 闭区间整数
+//		double coin = xoshiro::RandReal();            // [0.0, 1.0) 浮点数
+//		bool  flag  = xoshiro::RandBool(0.3);         // 30% 概率为 true
+//
+//		std::vector<int> v = {10, 20, 30, 40};
+//		auto& elem = xoshiro::RandElement(v);         // 随机取一个元素
+//
+//	手动管理引擎
+//
+//		// 用真随机种子创建引擎
+//		xoshiro::Xoshiro256StarStar rng{ xoshiro::RandomSeed() };
+//
+//		// 指定引擎的便捷函数重载
+//		int val = xoshiro::RandInt(rng, 0, 99);
+//
+//		// 配合标准库 distribution 使用（满足 UniformRandomBitGenerator）
+//		std::normal_distribution<double> norm(0.0, 1.0);
+//		double sample = norm(rng);
+//
+//	序列化 / 反序列化（保存和恢复状态）
+//
+//		auto state = rng.serialize();
+//		// ... 稍后恢复 ...
+//		rng.deserialize(state);
+//
+//	跳跃（并行计算中生成不重叠子序列）
+//
+//		rng.jump();      // 等价于前进 2^128 步（xoshiro256 系列）
+//		rng.longJump();  // 等价于前进 2^192 步
+//
+//	跳过指定次数
+//
+//		rng.discard(1000);  // 跳过 1000 个输出
+//
+//	引擎选择指南
+//
+//		引擎                    输出   周期        状态   适用场景
+//		─────────────────────────────────────────────────────────────
+//		Xoshiro256StarStar     64-bit  2^256-1    32B    通用首选，统计质量最优
+//		Xoshiro256PlusPlus     64-bit  2^256-1    32B    通用，略快于 **
+//		Xoshiro256Plus         64-bit  2^256-1    32B    最快，低位质量稍弱
+//		Xoroshiro128PlusPlus   64-bit  2^128-1    16B    内存受限场景
+//		Xoroshiro128StarStar   64-bit  2^128-1    16B    同上，统计更优
+//		Xoroshiro128Plus       64-bit  2^128-1    16B    同上，最快
+//		Xoshiro128PlusPlus     32-bit  2^128-1    16B    32 位平台
+//		Xoshiro128StarStar     32-bit  2^128-1    16B    32 位平台，统计更优
+//		Xoshiro128Plus         32-bit  2^128-1    16B    32 位平台，最快
+//		Xoroshiro64StarStar    32-bit  2^64-1      8B    极端内存受限
+//		Xoroshiro64Star        32-bit  2^64-1      8B    极端内存受限，最快
+//		SplitMix64             64-bit  2^64        8B    种子扩展 / 哈希，非通用 PRNG
+//
+//----------------------------------------------------------------------------------------
+
+# pragma once
+# include <cstdint>
+# include <array>
+# include <limits>
+# include <concepts>
+# include <random>
+# include <type_traits>
+
+namespace xoshiro
+{
+	// 生成器的默认种子值
+	inline constexpr std::uint64_t DefaultSeed = 1234567890ULL;
+
+	// 将给定的 uint32 值 `i` 转换为 [0.0f, 1.0f) 范围内的 32 位浮点数
+	template <std::same_as<std::uint32_t> Uint32>
+	[[nodiscard]]
+	inline constexpr float FloatFromBits(Uint32 i) noexcept;
+
+	// 将给定的 uint64 值 `i` 转换为 [0.0, 1.0) 范围内的 64 位浮点数
+	template <std::same_as<std::uint64_t> Uint64>
+	[[nodiscard]]
+	inline constexpr double DoubleFromBits(Uint64 i) noexcept;
+
+	// SplitMix64
+	// 输出：64 位
+	// 周期：2^64
+	// 状态大小：8 字节
+	// 原始实现：http://prng.di.unimi.it/splitmix64.c
+	class SplitMix64
+	{
+	public:
+
+		using state_type	= std::uint64_t;	
+		using result_type	= std::uint64_t;
+		
+		[[nodiscard]]
+		explicit constexpr SplitMix64(state_type state = DefaultSeed) noexcept;
+
+		constexpr result_type operator()() noexcept;
+
+		constexpr void discard(unsigned long long n) noexcept;
+
+		template <std::size_t N>
+		[[nodiscard]]
+		constexpr std::array<std::uint64_t, N> generateSeedSequence() noexcept;
+
+		[[nodiscard]]
+		static constexpr result_type min() noexcept;
+
+		[[nodiscard]]
+		static constexpr result_type max() noexcept;
+
+		[[nodiscard]]
+		constexpr state_type serialize() const noexcept;
+
+		constexpr void deserialize(state_type state) noexcept;
+
+		[[nodiscard]]
+		friend bool operator ==(const SplitMix64& lhs, const SplitMix64& rhs) noexcept
+		{
+			return (lhs.m_state == rhs.m_state);
+		}
+
+		[[nodiscard]]
+		friend bool operator !=(const SplitMix64& lhs, const SplitMix64& rhs) noexcept
+		{
+			return (lhs.m_state != rhs.m_state);
+		}
+	
+	private:
+
+		state_type m_state;
+	};
+
+	// xoshiro256+
+	// 输出：64 位
+	// 周期：2^256 - 1
+	// 状态大小：32 字节
+	// 原始实现：http://prng.di.unimi.it/xoshiro256plus.c
+	// 版本：1.0
+	class Xoshiro256Plus
+	{
+	public:
+
+		using state_type	= std::array<std::uint64_t, 4>;
+		using result_type	= std::uint64_t;
+
+		[[nodiscard]]
+		explicit constexpr Xoshiro256Plus(std::uint64_t seed = DefaultSeed) noexcept;
+
+		[[nodiscard]]
+		explicit constexpr Xoshiro256Plus(state_type state) noexcept;
+
+		constexpr result_type operator()() noexcept;
+
+		constexpr void discard(unsigned long long n) noexcept;
+
+		// 跳跃函数。等价于调用 2^128 次 operator()；
+		// 可用于生成 2^128 个不重叠的子序列，适用于并行计算。
+		constexpr void jump() noexcept;
+
+		// 长跳跃函数。等价于调用 2^192 次 next()；
+		// 可用于生成 2^64 个起始点，每个起始点可通过 jump()
+		// 生成 2^64 个不重叠的子序列，适用于并行分布式计算。
+		constexpr void longJump() noexcept;
+
+		[[nodiscard]]
+		static constexpr result_type min() noexcept;
+
+		[[nodiscard]]
+		static constexpr result_type max() noexcept;
+
+		[[nodiscard]]
+		constexpr state_type serialize() const noexcept;
+
+		constexpr void deserialize(state_type state) noexcept;
+
+		[[nodiscard]]
+		friend bool operator ==(const Xoshiro256Plus& lhs, const Xoshiro256Plus& rhs) noexcept
+		{
+			return (lhs.m_state == rhs.m_state);
+		}
+
+		[[nodiscard]]
+		friend bool operator !=(const Xoshiro256Plus& lhs, const Xoshiro256Plus& rhs) noexcept
+		{
+			return (lhs.m_state != rhs.m_state);
+		}
+
+	private:
+
+		state_type m_state;
+	};
+
+	// xoshiro256++
+	// 输出：64 位
+	// 周期：2^256 - 1
+	// 状态大小：32 字节
+	// 原始实现：http://prng.di.unimi.it/xoshiro256plusplus.c
+	// 版本：1.0
+	class Xoshiro256PlusPlus
+	{
+	public:
+
+		using state_type	= std::array<std::uint64_t, 4>;
+		using result_type	= std::uint64_t;
+
+		[[nodiscard]]
+		explicit constexpr Xoshiro256PlusPlus(std::uint64_t seed = DefaultSeed) noexcept;
+
+		[[nodiscard]]
+		explicit constexpr Xoshiro256PlusPlus(state_type state) noexcept;
+
+		constexpr result_type operator()() noexcept;
+
+		constexpr void discard(unsigned long long n) noexcept;
+
+		// 跳跃函数。等价于调用 2^128 次 next()；
+		// 可用于生成 2^128 个不重叠的子序列，适用于并行计算。
+		constexpr void jump() noexcept;
+
+		// 长跳跃函数。等价于调用 2^192 次 next()；
+		// 可用于生成 2^64 个起始点，每个起始点可通过 jump()
+		// 生成 2^64 个不重叠的子序列，适用于并行分布式计算。
+		constexpr void longJump() noexcept;
+
+		[[nodiscard]]
+		static constexpr result_type min() noexcept;
+
+		[[nodiscard]]
+		static constexpr result_type max() noexcept;
+
+		[[nodiscard]]
+		constexpr state_type serialize() const noexcept;
+
+		constexpr void deserialize(state_type state) noexcept;
+
+		[[nodiscard]]
+		friend bool operator ==(const Xoshiro256PlusPlus& lhs, const Xoshiro256PlusPlus& rhs) noexcept
+		{
+			return (lhs.m_state == rhs.m_state);
+		}
+
+		[[nodiscard]]
+		friend bool operator !=(const Xoshiro256PlusPlus& lhs, const Xoshiro256PlusPlus& rhs) noexcept
+		{
+			return (lhs.m_state != rhs.m_state);
+		}
+
+	private:
+
+		state_type m_state;
+	};
+
+	// xoshiro256**
+	// 输出：64 位
+	// 周期：2^256 - 1
+	// 状态大小：32 字节
+	// 原始实现：http://prng.di.unimi.it/xoshiro256starstar.c
+	// 版本：1.0
+	class Xoshiro256StarStar
+	{
+	public:
+
+		using state_type	= std::array<std::uint64_t, 4>;
+		using result_type	= std::uint64_t;
+
+		[[nodiscard]]
+		explicit constexpr Xoshiro256StarStar(std::uint64_t seed = DefaultSeed) noexcept;
+
+		[[nodiscard]]
+		explicit constexpr Xoshiro256StarStar(state_type state) noexcept;
+
+		constexpr result_type operator()() noexcept;
+
+		constexpr void discard(unsigned long long n) noexcept;
+
+		// 跳跃函数。等价于调用 2^128 次 next()；
+		// 可用于生成 2^128 个不重叠的子序列，适用于并行计算。
+		constexpr void jump() noexcept;
+
+		// 长跳跃函数。等价于调用 2^192 次 next()；
+		// 可用于生成 2^64 个起始点，每个起始点可通过 jump()
+		// 生成 2^64 个不重叠的子序列，适用于并行分布式计算。
+		constexpr void longJump() noexcept;
+
+		[[nodiscard]]
+		static constexpr result_type min() noexcept;
+
+		[[nodiscard]]
+		static constexpr result_type max() noexcept;
+
+		[[nodiscard]]
+		constexpr state_type serialize() const noexcept;
+
+		constexpr void deserialize(state_type state) noexcept;
+
+		[[nodiscard]]
+		friend bool operator ==(const Xoshiro256StarStar& lhs, const Xoshiro256StarStar& rhs) noexcept
+		{
+			return (lhs.m_state == rhs.m_state);
+		}
+
+		[[nodiscard]]
+		friend bool operator !=(const Xoshiro256StarStar& lhs, const Xoshiro256StarStar& rhs) noexcept
+		{
+			return (lhs.m_state != rhs.m_state);
+		}
+
+	private:
+
+		state_type m_state;
+	};
+
+	// xoroshiro128+
+	// 输出：64 位
+	// 周期：2^128 - 1
+	// 状态大小：16 字节
+	// 原始实现：http://prng.di.unimi.it/xoroshiro128plus.c
+	// 版本：1.0
+	class Xoroshiro128Plus
+	{
+	public:
+
+		using state_type	= std::array<std::uint64_t, 2>;
+		using result_type	= std::uint64_t;
+
+		[[nodiscard]]
+		explicit constexpr Xoroshiro128Plus(std::uint64_t seed = DefaultSeed) noexcept;
+
+		[[nodiscard]]
+		explicit constexpr Xoroshiro128Plus(state_type state) noexcept;
+
+		constexpr result_type operator()() noexcept;
+
+		constexpr void discard(unsigned long long n) noexcept;
+
+		// 跳跃函数。等价于调用 2^64 次 next()；
+		// 可用于生成 2^64 个不重叠的子序列，适用于并行计算。
+		constexpr void jump() noexcept;
+
+		// 长跳跃函数。等价于调用 2^96 次 next()；
+		// 可用于生成 2^32 个起始点，每个起始点可通过 jump()
+		// 生成 2^32 个不重叠的子序列，适用于并行分布式计算。
+		constexpr void longJump() noexcept;
+
+		[[nodiscard]]
+		static constexpr result_type min() noexcept;
+
+		[[nodiscard]]
+		static constexpr result_type max() noexcept;
+
+		[[nodiscard]]
+		constexpr state_type serialize() const noexcept;
+
+		constexpr void deserialize(state_type state) noexcept;
+
+		[[nodiscard]]
+		friend bool operator ==(const Xoroshiro128Plus& lhs, const Xoroshiro128Plus& rhs) noexcept
+		{
+			return (lhs.m_state == rhs.m_state);
+		}
+
+		[[nodiscard]]
+		friend bool operator !=(const Xoroshiro128Plus& lhs, const Xoroshiro128Plus& rhs) noexcept
+		{
+			return (lhs.m_state != rhs.m_state);
+		}
+
+	private:
+
+		state_type m_state;
+	};
+
+	// xoroshiro128++
+	// 输出：64 位
+	// 周期：2^128 - 1
+	// 状态大小：16 字节
+	// 原始实现：http://prng.di.unimi.it/xoroshiro128plusplus.c
+	// 版本：1.0
+	class Xoroshiro128PlusPlus
+	{
+	public:
+
+		using state_type	= std::array<std::uint64_t, 2>;
+		using result_type	= std::uint64_t;
+
+		[[nodiscard]]
+		explicit constexpr Xoroshiro128PlusPlus(std::uint64_t seed = DefaultSeed) noexcept;
+
+		[[nodiscard]]
+		explicit constexpr Xoroshiro128PlusPlus(state_type state) noexcept;
+
+		constexpr result_type operator()() noexcept;
+
+		constexpr void discard(unsigned long long n) noexcept;
+
+		// 跳跃函数。等价于调用 2^64 次 next()；
+		// 可用于生成 2^64 个不重叠的子序列，适用于并行计算。
+		constexpr void jump() noexcept;
+
+		// 长跳跃函数。等价于调用 2^96 次 next()；
+		// 可用于生成 2^32 个起始点，每个起始点可通过 jump()
+		// 生成 2^32 个不重叠的子序列，适用于并行分布式计算。
+		constexpr void longJump() noexcept;
+
+		[[nodiscard]]
+		static constexpr result_type min() noexcept;
+
+		[[nodiscard]]
+		static constexpr result_type max() noexcept;
+
+		[[nodiscard]]
+		constexpr state_type serialize() const noexcept;
+
+		constexpr void deserialize(state_type state) noexcept;
+
+		[[nodiscard]]
+		friend bool operator ==(const Xoroshiro128PlusPlus& lhs, const Xoroshiro128PlusPlus& rhs) noexcept
+		{
+			return (lhs.m_state == rhs.m_state);
+		}
+
+		[[nodiscard]]
+		friend bool operator !=(const Xoroshiro128PlusPlus& lhs, const Xoroshiro128PlusPlus& rhs) noexcept
+		{
+			return (lhs.m_state != rhs.m_state);
+		}
+
+	private:
+
+		state_type m_state;
+	};
+
+	// xoroshiro128**
+	// 输出：64 位
+	// 周期：2^128 - 1
+	// 状态大小：16 字节
+	// 原始实现：http://prng.di.unimi.it/xoroshiro128starstar.c
+	// 版本：1.0
+	class Xoroshiro128StarStar
+	{
+	public:
+
+		using state_type	= std::array<std::uint64_t, 2>;
+		using result_type	= std::uint64_t;
+
+		[[nodiscard]]
+		explicit constexpr Xoroshiro128StarStar(std::uint64_t seed = DefaultSeed) noexcept;
+
+		[[nodiscard]]
+		explicit constexpr Xoroshiro128StarStar(state_type state) noexcept;
+
+		constexpr result_type operator()() noexcept;
+
+		constexpr void discard(unsigned long long n) noexcept;
+
+		// 跳跃函数。等价于调用 2^64 次 next()；
+		// 可用于生成 2^64 个不重叠的子序列，适用于并行计算。
+		constexpr void jump() noexcept;
+
+		// 长跳跃函数。等价于调用 2^96 次 next()；
+		// 可用于生成 2^32 个起始点，每个起始点可通过 jump()
+		// 生成 2^32 个不重叠的子序列，适用于并行分布式计算。
+		constexpr void longJump() noexcept;
+
+		[[nodiscard]]
+		static constexpr result_type min() noexcept;
+
+		[[nodiscard]]
+		static constexpr result_type max() noexcept;
+
+		[[nodiscard]]
+		constexpr state_type serialize() const noexcept;
+
+		constexpr void deserialize(state_type state) noexcept;
+
+		[[nodiscard]]
+		friend bool operator ==(const Xoroshiro128StarStar& lhs, const Xoroshiro128StarStar& rhs) noexcept
+		{
+			return (lhs.m_state == rhs.m_state);
+		}
+
+		[[nodiscard]]
+		friend bool operator !=(const Xoroshiro128StarStar& lhs, const Xoroshiro128StarStar& rhs) noexcept
+		{
+			return (lhs.m_state != rhs.m_state);
+		}
+
+	private:
+
+		state_type m_state;
+	};
+
+	// xoshiro128+
+	// 输出：32 位
+	// 周期：2^128 - 1
+	// 状态大小：16 字节
+	// 原始实现：http://prng.di.unimi.it/xoshiro128plus.c
+	// 版本：1.0
+	class Xoshiro128Plus
+	{
+	public:
+
+		using state_type	= std::array<std::uint32_t, 4>;
+		using result_type	= std::uint32_t;
+
+		[[nodiscard]]
+		explicit constexpr Xoshiro128Plus(std::uint64_t seed = DefaultSeed) noexcept;
+
+		[[nodiscard]]
+		explicit constexpr Xoshiro128Plus(state_type state) noexcept;
+
+		constexpr result_type operator()() noexcept;
+
+		constexpr void discard(unsigned long long n) noexcept;
+
+		// 跳跃函数。等价于调用 2^64 次 next()；
+		// 可用于生成 2^64 个不重叠的子序列，适用于并行计算。
+		constexpr void jump() noexcept;
+
+		// 长跳跃函数。等价于调用 2^96 次 next()；
+		// 可用于生成 2^32 个起始点，每个起始点可通过 jump()
+		// 生成 2^32 个不重叠的子序列，适用于并行分布式计算。
+		constexpr void longJump() noexcept;
+
+		[[nodiscard]]
+		static constexpr result_type min() noexcept;
+
+		[[nodiscard]]
+		static constexpr result_type max() noexcept;
+
+		[[nodiscard]]
+		constexpr state_type serialize() const noexcept;
+
+		constexpr void deserialize(state_type state) noexcept;
+
+		[[nodiscard]]
+		friend bool operator ==(const Xoshiro128Plus& lhs, const Xoshiro128Plus& rhs) noexcept
+		{
+			return (lhs.m_state == rhs.m_state);
+		}
+
+		[[nodiscard]]
+		friend bool operator !=(const Xoshiro128Plus& lhs, const Xoshiro128Plus& rhs) noexcept
+		{
+			return (lhs.m_state != rhs.m_state);
+		}
+
+	private:
+
+		state_type m_state;
+	};
+
+	// xoshiro128++
+	// 输出：32 位
+	// 周期：2^128 - 1
+	// 状态大小：16 字节
+	// 原始实现：http://prng.di.unimi.it/xoshiro128plusplus.c
+	// 版本：1.0
+	class Xoshiro128PlusPlus
+	{
+	public:
+
+		using state_type	= std::array<std::uint32_t, 4>;
+		using result_type	= std::uint32_t;
+
+		[[nodiscard]]
+		explicit constexpr Xoshiro128PlusPlus(std::uint64_t seed = DefaultSeed) noexcept;
+
+		[[nodiscard]]
+		explicit constexpr Xoshiro128PlusPlus(state_type state) noexcept;
+
+		constexpr result_type operator()() noexcept;
+
+		constexpr void discard(unsigned long long n) noexcept;
+
+		// 跳跃函数。等价于调用 2^64 次 next()；
+		// 可用于生成 2^64 个不重叠的子序列，适用于并行计算。
+		constexpr void jump() noexcept;
+
+		// 长跳跃函数。等价于调用 2^96 次 next()；
+		// 可用于生成 2^32 个起始点，每个起始点可通过 jump()
+		// 生成 2^32 个不重叠的子序列，适用于并行分布式计算。
+		constexpr void longJump() noexcept;
+
+		[[nodiscard]]
+		static constexpr result_type min() noexcept;
+
+		[[nodiscard]]
+		static constexpr result_type max() noexcept;
+
+		[[nodiscard]]
+		constexpr state_type serialize() const noexcept;
+
+		constexpr void deserialize(state_type state) noexcept;
+
+		[[nodiscard]]
+		friend bool operator ==(const Xoshiro128PlusPlus& lhs, const Xoshiro128PlusPlus& rhs) noexcept
+		{
+			return (lhs.m_state == rhs.m_state);
+		}
+
+		[[nodiscard]]
+		friend bool operator !=(const Xoshiro128PlusPlus& lhs, const Xoshiro128PlusPlus& rhs) noexcept
+		{
+			return (lhs.m_state != rhs.m_state);
+		}
+
+	private:
+
+		state_type m_state;
+	};
+
+	// xoshiro128**
+	// 输出：32 位
+	// 周期：2^128 - 1
+	// 状态大小：16 字节
+	// 原始实现：http://prng.di.unimi.it/xoshiro128starstar.c
+	// 版本：1.1
+	class Xoshiro128StarStar
+	{
+	public:
+
+		using state_type	= std::array<std::uint32_t, 4>;
+		using result_type	= std::uint32_t;
+
+		[[nodiscard]]
+		explicit constexpr Xoshiro128StarStar(std::uint64_t seed = DefaultSeed) noexcept;
+
+		[[nodiscard]]
+		explicit constexpr Xoshiro128StarStar(state_type state) noexcept;
+
+		constexpr result_type operator()() noexcept;
+
+		constexpr void discard(unsigned long long n) noexcept;
+
+		// 跳跃函数。等价于调用 2^64 次 next()；
+		// 可用于生成 2^64 个不重叠的子序列，适用于并行计算。
+		constexpr void jump() noexcept;
+
+		// 长跳跃函数。等价于调用 2^96 次 next()；
+		// 可用于生成 2^32 个起始点，每个起始点可通过 jump()
+		// 生成 2^32 个不重叠的子序列，适用于并行分布式计算。
+		constexpr void longJump() noexcept;
+
+		[[nodiscard]]
+		static constexpr result_type min() noexcept;
+
+		[[nodiscard]]
+		static constexpr result_type max() noexcept;
+
+		[[nodiscard]]
+		constexpr state_type serialize() const noexcept;
+
+		constexpr void deserialize(state_type state) noexcept;
+
+		[[nodiscard]]
+		friend bool operator ==(const Xoshiro128StarStar& lhs, const Xoshiro128StarStar& rhs) noexcept
+		{
+			return (lhs.m_state == rhs.m_state);
+		}
+
+		[[nodiscard]]
+		friend bool operator !=(const Xoshiro128StarStar& lhs, const Xoshiro128StarStar& rhs) noexcept
+		{
+			return (lhs.m_state != rhs.m_state);
+		}
+
+	private:
+
+		state_type m_state;
+	};
+
+	// xoroshiro64*
+	// 输出：32 位
+	// 周期：2^64 - 1
+	// 状态大小：8 字节
+	// 原始实现：http://prng.di.unimi.it/xoroshiro64star.c
+	class Xoroshiro64Star
+	{
+	public:
+
+		using state_type	= std::array<std::uint32_t, 2>;
+		using result_type	= std::uint32_t;
+
+		[[nodiscard]]
+		explicit constexpr Xoroshiro64Star(std::uint64_t seed = DefaultSeed) noexcept;
+
+		[[nodiscard]]
+		explicit constexpr Xoroshiro64Star(state_type state) noexcept;
+
+		constexpr result_type operator()() noexcept;
+
+		constexpr void discard(unsigned long long n) noexcept;
+
+		[[nodiscard]]
+		static constexpr result_type min() noexcept;
+
+		[[nodiscard]]
+		static constexpr result_type max() noexcept;
+
+		[[nodiscard]]
+		constexpr state_type serialize() const noexcept;
+
+		constexpr void deserialize(state_type state) noexcept;
+
+		[[nodiscard]]
+		friend bool operator ==(const Xoroshiro64Star& lhs, const Xoroshiro64Star& rhs) noexcept
+		{
+			return (lhs.m_state == rhs.m_state);
+		}
+
+		[[nodiscard]]
+		friend bool operator !=(const Xoroshiro64Star& lhs, const Xoroshiro64Star& rhs) noexcept
+		{
+			return (lhs.m_state != rhs.m_state);
+		}
+
+	private:
+
+		state_type m_state;
+	};
+
+	// xoroshiro64**
+	// 输出：32 位
+	// 周期：2^64 - 1
+	// 状态大小：8 字节
+	// 原始实现：http://prng.di.unimi.it/xoroshiro64starstar.c
+	class Xoroshiro64StarStar
+	{
+	public:
+
+		using state_type	= std::array<std::uint32_t, 2>;
+		using result_type	= std::uint32_t;
+
+		[[nodiscard]]
+		explicit constexpr Xoroshiro64StarStar(std::uint64_t seed = DefaultSeed) noexcept;
+
+		[[nodiscard]]
+		explicit constexpr Xoroshiro64StarStar(state_type state) noexcept;
+
+		constexpr result_type operator()() noexcept;
+
+		constexpr void discard(unsigned long long n) noexcept;
+
+		[[nodiscard]]
+		static constexpr result_type min() noexcept;
+
+		[[nodiscard]]
+		static constexpr result_type max() noexcept;
+
+		[[nodiscard]]
+		constexpr state_type serialize() const noexcept;
+
+		constexpr void deserialize(state_type state) noexcept;
+
+		[[nodiscard]]
+		friend bool operator ==(const Xoroshiro64StarStar& lhs, const Xoroshiro64StarStar& rhs) noexcept
+		{
+			return (lhs.m_state == rhs.m_state);
+		}
+
+		[[nodiscard]]
+		friend bool operator !=(const Xoroshiro64StarStar& lhs, const Xoroshiro64StarStar& rhs) noexcept
+		{
+			return (lhs.m_state != rhs.m_state);
+		}
+
+	private:
+
+		state_type m_state;
+	};
+}
+
+////////////////////////////////////////////////////////////////
+
+namespace xoshiro
+{
+	template <std::same_as<std::uint32_t> Uint32>
+	inline constexpr float FloatFromBits(const Uint32 i) noexcept
+	{
+		return (i >> 8) * 0x1.0p-24f;
+	}
+
+	template <std::same_as<std::uint64_t> Uint64>
+	inline constexpr double DoubleFromBits(const Uint64 i) noexcept
+	{
+		return (i >> 11) * 0x1.0p-53;
+	}
+
+	namespace detail
+	{
+		[[nodiscard]]
+		static constexpr std::uint64_t RotL(const std::uint64_t x, const int s) noexcept
+		{
+			return (x << s) | (x >> (64 - s));
+		}
+
+		[[nodiscard]]
+		static constexpr std::uint32_t RotL(const std::uint32_t x, const int s) noexcept
+		{
+			return (x << s) | (x >> (32 - s));
+		}
+	}
+
+	////////////////////////////////////////////////////////////////
+	//
+	//	SplitMix64
+	//
+	inline constexpr SplitMix64::SplitMix64(const state_type state) noexcept
+		: m_state(state) {}
+
+	inline constexpr SplitMix64::result_type SplitMix64::operator()() noexcept
+	{
+		std::uint64_t z = (m_state += 0x9e3779b97f4a7c15);
+		z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9;
+		z = (z ^ (z >> 27)) * 0x94d049bb133111eb;
+		return z ^ (z >> 31);
+	}
+
+	template <std::size_t N>
+	inline constexpr std::array<std::uint64_t, N> SplitMix64::generateSeedSequence() noexcept
+	{
+		std::array<std::uint64_t, N> seeds = {};
+
+		for (auto& seed : seeds)
+		{
+			seed = operator()();
+		}
+
+		return seeds;
+	}
+
+	inline constexpr SplitMix64::result_type SplitMix64::min() noexcept
+	{
+		return std::numeric_limits<result_type>::lowest();
+	}
+
+	inline constexpr SplitMix64::result_type SplitMix64::max() noexcept
+	{
+		return std::numeric_limits<result_type>::max();
+	}
+
+	inline constexpr SplitMix64::state_type SplitMix64::serialize() const noexcept
+	{
+		return m_state;
+	}
+
+	inline constexpr void SplitMix64::deserialize(const state_type state) noexcept
+	{
+		m_state = state;
+	}
+
+	inline constexpr void SplitMix64::discard(const unsigned long long n) noexcept
+	{
+		for (unsigned long long i = 0; i < n; ++i) { operator()(); }
+	}
+
+	////////////////////////////////////////////////////////////////
+	//
+	//	xoshiro256+
+	//
+	inline constexpr Xoshiro256Plus::Xoshiro256Plus(const std::uint64_t seed) noexcept
+		: m_state(SplitMix64{ seed }.generateSeedSequence<4>()) {}
+
+	inline constexpr Xoshiro256Plus::Xoshiro256Plus(const state_type state) noexcept
+		: m_state(state) {}
+
+	inline constexpr Xoshiro256Plus::result_type Xoshiro256Plus::operator()() noexcept
+	{
+		const std::uint64_t result = m_state[0] + m_state[3];
+		const std::uint64_t t = m_state[1] << 17;
+		m_state[2] ^= m_state[0];
+		m_state[3] ^= m_state[1];
+		m_state[1] ^= m_state[2];
+		m_state[0] ^= m_state[3];
+		m_state[2] ^= t;
+		m_state[3] = detail::RotL(m_state[3], 45);
+		return result;
+	}
+
+	inline constexpr void Xoshiro256Plus::jump() noexcept
+	{
+		constexpr std::uint64_t JUMP[] = { 0x180ec6d33cfd0aba, 0xd5a61266f0c9392c, 0xa9582618e03fc9aa, 0x39abdc4529b1661c };
+
+		std::uint64_t s0 = 0;
+		std::uint64_t s1 = 0;
+		std::uint64_t s2 = 0;
+		std::uint64_t s3 = 0;
+
+		for (std::uint64_t jump : JUMP)
+		{
+			for (int b = 0; b < 64; ++b)
+			{
+				if (jump & UINT64_C(1) << b)
+				{
+					s0 ^= m_state[0];
+					s1 ^= m_state[1];
+					s2 ^= m_state[2];
+					s3 ^= m_state[3];
+				}
+				operator()();
+			}
+		}
+
+		m_state[0] = s0;
+		m_state[1] = s1;
+		m_state[2] = s2;
+		m_state[3] = s3;
+	}
+
+	inline constexpr void Xoshiro256Plus::longJump() noexcept
+	{
+		constexpr std::uint64_t LONG_JUMP[] = { 0x76e15d3efefdcbbf, 0xc5004e441c522fb3, 0x77710069854ee241, 0x39109bb02acbe635 };
+
+		std::uint64_t s0 = 0;
+		std::uint64_t s1 = 0;
+		std::uint64_t s2 = 0;
+		std::uint64_t s3 = 0;
+
+		for (std::uint64_t jump : LONG_JUMP)
+		{
+			for (int b = 0; b < 64; ++b)
+			{
+				if (jump & UINT64_C(1) << b)
+				{
+					s0 ^= m_state[0];
+					s1 ^= m_state[1];
+					s2 ^= m_state[2];
+					s3 ^= m_state[3];
+				}
+				operator()();
+			}
+		}
+
+		m_state[0] = s0;
+		m_state[1] = s1;
+		m_state[2] = s2;
+		m_state[3] = s3;
+	}
+
+	inline constexpr Xoshiro256Plus::result_type Xoshiro256Plus::min() noexcept
+	{
+		return std::numeric_limits<result_type>::lowest();
+	}
+
+	inline constexpr Xoshiro256Plus::result_type Xoshiro256Plus::max() noexcept
+	{
+		return std::numeric_limits<result_type>::max();
+	}
+
+	inline constexpr Xoshiro256Plus::state_type Xoshiro256Plus::serialize() const noexcept
+	{
+		return m_state;
+	}
+
+	inline constexpr void Xoshiro256Plus::deserialize(const state_type state) noexcept
+	{
+		m_state = state;
+	}
+
+	inline constexpr void Xoshiro256Plus::discard(const unsigned long long n) noexcept
+	{
+		for (unsigned long long i = 0; i < n; ++i) { operator()(); }
+	}
+
+	////////////////////////////////////////////////////////////////
+	//
+	//	xoshiro256++
+	//
+	inline constexpr Xoshiro256PlusPlus::Xoshiro256PlusPlus(const std::uint64_t seed) noexcept
+		: m_state(SplitMix64{ seed }.generateSeedSequence<4>()) {}
+
+	inline constexpr Xoshiro256PlusPlus::Xoshiro256PlusPlus(const state_type state) noexcept
+		: m_state(state) {}
+
+	inline constexpr Xoshiro256PlusPlus::result_type Xoshiro256PlusPlus::operator()() noexcept
+	{
+		const std::uint64_t result = detail::RotL(m_state[0] + m_state[3], 23) + m_state[0];
+		const std::uint64_t t = m_state[1] << 17;
+		m_state[2] ^= m_state[0];
+		m_state[3] ^= m_state[1];
+		m_state[1] ^= m_state[2];
+		m_state[0] ^= m_state[3];
+		m_state[2] ^= t;
+		m_state[3] = detail::RotL(m_state[3], 45);
+		return result;
+	}
+
+	inline constexpr void Xoshiro256PlusPlus::jump() noexcept
+	{
+		constexpr std::uint64_t JUMP[] = { 0x180ec6d33cfd0aba, 0xd5a61266f0c9392c, 0xa9582618e03fc9aa, 0x39abdc4529b1661c };
+
+		std::uint64_t s0 = 0;
+		std::uint64_t s1 = 0;
+		std::uint64_t s2 = 0;
+		std::uint64_t s3 = 0;
+
+		for (std::uint64_t jump : JUMP)
+		{
+			for (int b = 0; b < 64; ++b)
+			{
+				if (jump & UINT64_C(1) << b)
+				{
+					s0 ^= m_state[0];
+					s1 ^= m_state[1];
+					s2 ^= m_state[2];
+					s3 ^= m_state[3];
+				}
+				operator()();
+			}
+		}
+
+		m_state[0] = s0;
+		m_state[1] = s1;
+		m_state[2] = s2;
+		m_state[3] = s3;
+	}
+
+	inline constexpr void Xoshiro256PlusPlus::longJump() noexcept
+	{
+		constexpr std::uint64_t LONG_JUMP[] = { 0x76e15d3efefdcbbf, 0xc5004e441c522fb3, 0x77710069854ee241, 0x39109bb02acbe635 };
+
+		std::uint64_t s0 = 0;
+		std::uint64_t s1 = 0;
+		std::uint64_t s2 = 0;
+		std::uint64_t s3 = 0;
+
+		for (std::uint64_t jump : LONG_JUMP)
+		{
+			for (int b = 0; b < 64; ++b)
+			{
+				if (jump & UINT64_C(1) << b)
+				{
+					s0 ^= m_state[0];
+					s1 ^= m_state[1];
+					s2 ^= m_state[2];
+					s3 ^= m_state[3];
+				}
+				operator()();
+			}
+		}
+
+		m_state[0] = s0;
+		m_state[1] = s1;
+		m_state[2] = s2;
+		m_state[3] = s3;
+	}
+
+	inline constexpr Xoshiro256PlusPlus::result_type Xoshiro256PlusPlus::min() noexcept
+	{
+		return std::numeric_limits<result_type>::lowest();
+	}
+
+	inline constexpr Xoshiro256PlusPlus::result_type Xoshiro256PlusPlus::max() noexcept
+	{
+		return std::numeric_limits<result_type>::max();
+	}
+
+	inline constexpr Xoshiro256PlusPlus::state_type Xoshiro256PlusPlus::serialize() const noexcept
+	{
+		return m_state;
+	}
+
+	inline constexpr void Xoshiro256PlusPlus::deserialize(const state_type state) noexcept
+	{
+		m_state = state;
+	}
+
+	inline constexpr void Xoshiro256PlusPlus::discard(const unsigned long long n) noexcept
+	{
+		for (unsigned long long i = 0; i < n; ++i) { operator()(); }
+	}
+
+	////////////////////////////////////////////////////////////////
+	//
+	//	xoshiro256**
+	//
+	inline constexpr Xoshiro256StarStar::Xoshiro256StarStar(const std::uint64_t seed) noexcept
+		: m_state(SplitMix64{ seed }.generateSeedSequence<4>()) {}
+
+	inline constexpr Xoshiro256StarStar::Xoshiro256StarStar(const state_type state) noexcept
+		: m_state(state) {}
+
+	inline constexpr Xoshiro256StarStar::result_type Xoshiro256StarStar::operator()() noexcept
+	{
+		const std::uint64_t result = detail::RotL(m_state[1] * 5, 7) * 9;
+		const std::uint64_t t = m_state[1] << 17;
+		m_state[2] ^= m_state[0];
+		m_state[3] ^= m_state[1];
+		m_state[1] ^= m_state[2];
+		m_state[0] ^= m_state[3];
+		m_state[2] ^= t;
+		m_state[3] = detail::RotL(m_state[3], 45);
+		return result;
+	}
+
+	inline constexpr void Xoshiro256StarStar::jump() noexcept
+	{
+		constexpr std::uint64_t JUMP[] = { 0x180ec6d33cfd0aba, 0xd5a61266f0c9392c, 0xa9582618e03fc9aa, 0x39abdc4529b1661c };
+
+		std::uint64_t s0 = 0;
+		std::uint64_t s1 = 0;
+		std::uint64_t s2 = 0;
+		std::uint64_t s3 = 0;
+
+		for (std::uint64_t jump : JUMP)
+		{
+			for (int b = 0; b < 64; ++b)
+			{
+				if (jump & UINT64_C(1) << b)
+				{
+					s0 ^= m_state[0];
+					s1 ^= m_state[1];
+					s2 ^= m_state[2];
+					s3 ^= m_state[3];
+				}
+				operator()();
+			}
+		}
+
+		m_state[0] = s0;
+		m_state[1] = s1;
+		m_state[2] = s2;
+		m_state[3] = s3;
+	}
+
+	inline constexpr void Xoshiro256StarStar::longJump() noexcept
+	{
+		constexpr std::uint64_t LONG_JUMP[] = { 0x76e15d3efefdcbbf, 0xc5004e441c522fb3, 0x77710069854ee241, 0x39109bb02acbe635 };
+
+		std::uint64_t s0 = 0;
+		std::uint64_t s1 = 0;
+		std::uint64_t s2 = 0;
+		std::uint64_t s3 = 0;
+
+		for (std::uint64_t jump : LONG_JUMP)
+		{
+			for (int b = 0; b < 64; ++b)
+			{
+				if (jump & UINT64_C(1) << b)
+				{
+					s0 ^= m_state[0];
+					s1 ^= m_state[1];
+					s2 ^= m_state[2];
+					s3 ^= m_state[3];
+				}
+				operator()();
+			}
+		}
+
+		m_state[0] = s0;
+		m_state[1] = s1;
+		m_state[2] = s2;
+		m_state[3] = s3;
+	}
+
+	inline constexpr Xoshiro256StarStar::result_type Xoshiro256StarStar::min() noexcept
+	{
+		return std::numeric_limits<result_type>::lowest();
+	}
+
+	inline constexpr Xoshiro256StarStar::result_type Xoshiro256StarStar::max() noexcept
+	{
+		return std::numeric_limits<result_type>::max();
+	}
+
+	inline constexpr Xoshiro256StarStar::state_type Xoshiro256StarStar::serialize() const noexcept
+	{
+		return m_state;
+	}
+
+	inline constexpr void Xoshiro256StarStar::deserialize(const state_type state) noexcept
+	{
+		m_state = state;
+	}
+
+	inline constexpr void Xoshiro256StarStar::discard(const unsigned long long n) noexcept
+	{
+		for (unsigned long long i = 0; i < n; ++i) { operator()(); }
+	}
+
+	////////////////////////////////////////////////////////////////
+	//
+	//	xoroshiro128+
+	//
+	inline constexpr Xoroshiro128Plus::Xoroshiro128Plus(const std::uint64_t seed) noexcept
+		: m_state(SplitMix64{ seed }.generateSeedSequence<2>()) {}
+
+	inline constexpr Xoroshiro128Plus::Xoroshiro128Plus(const state_type state) noexcept
+		: m_state(state) {}
+
+	inline constexpr Xoroshiro128Plus::result_type Xoroshiro128Plus::operator()() noexcept
+	{
+		const std::uint64_t s0 = m_state[0];
+		std::uint64_t s1 = m_state[1];
+		const std::uint64_t result = s0 + s1;
+		s1 ^= s0;
+		m_state[0] = detail::RotL(s0, 24) ^ s1 ^ (s1 << 16);
+		m_state[1] = detail::RotL(s1, 37);
+		return result;
+	}
+
+	inline constexpr void Xoroshiro128Plus::jump() noexcept
+	{
+		constexpr std::uint64_t JUMP[] = { 0xdf900294d8f554a5, 0x170865df4b3201fc };
+
+		std::uint64_t s0 = 0;
+		std::uint64_t s1 = 0;
+
+		for (std::uint64_t jump : JUMP)
+		{
+			for (int b = 0; b < 64; ++b)
+			{
+				if (jump & UINT64_C(1) << b)
+				{
+					s0 ^= m_state[0];
+					s1 ^= m_state[1];
+				}
+				operator()();
+			}
+		}
+
+		m_state[0] = s0;
+		m_state[1] = s1;
+	}
+
+	inline constexpr void Xoroshiro128Plus::longJump() noexcept
+	{
+		constexpr std::uint64_t LONG_JUMP[] = { 0xd2a98b26625eee7b, 0xdddf9b1090aa7ac1 };
+
+		std::uint64_t s0 = 0;
+		std::uint64_t s1 = 0;
+
+		for (std::uint64_t jump : LONG_JUMP)
+		{
+			for (int b = 0; b < 64; ++b)
+			{
+				if (jump & UINT64_C(1) << b)
+				{
+					s0 ^= m_state[0];
+					s1 ^= m_state[1];
+				}
+				operator()();
+			}
+		}
+
+		m_state[0] = s0;
+		m_state[1] = s1;
+	}
+
+	inline constexpr Xoroshiro128Plus::result_type Xoroshiro128Plus::min() noexcept
+	{
+		return std::numeric_limits<result_type>::lowest();
+	}
+
+	inline constexpr Xoroshiro128Plus::result_type Xoroshiro128Plus::max() noexcept
+	{
+		return std::numeric_limits<result_type>::max();
+	}
+
+	inline constexpr Xoroshiro128Plus::state_type Xoroshiro128Plus::serialize() const noexcept
+	{
+		return m_state;
+	}
+
+	inline constexpr void Xoroshiro128Plus::deserialize(const state_type state) noexcept
+	{
+		m_state = state;
+	}
+
+	inline constexpr void Xoroshiro128Plus::discard(const unsigned long long n) noexcept
+	{
+		for (unsigned long long i = 0; i < n; ++i) { operator()(); }
+	}
+
+	////////////////////////////////////////////////////////////////
+	//
+	//	xoroshiro128++
+	//
+	inline constexpr Xoroshiro128PlusPlus::Xoroshiro128PlusPlus(const std::uint64_t seed) noexcept
+		: m_state(SplitMix64{ seed }.generateSeedSequence<2>()) {}
+
+	inline constexpr Xoroshiro128PlusPlus::Xoroshiro128PlusPlus(const state_type state) noexcept
+		: m_state(state) {}
+
+	inline constexpr Xoroshiro128PlusPlus::result_type Xoroshiro128PlusPlus::operator()() noexcept
+	{
+		const std::uint64_t s0 = m_state[0];
+		std::uint64_t s1 = m_state[1];
+		const std::uint64_t result = detail::RotL(s0 + s1, 17) + s0;
+		s1 ^= s0;
+		m_state[0] = detail::RotL(s0, 49) ^ s1 ^ (s1 << 21);
+		m_state[1] = detail::RotL(s1, 28);
+		return result;
+	}
+
+	inline constexpr void Xoroshiro128PlusPlus::jump() noexcept
+	{
+		constexpr std::uint64_t JUMP[] = { 0x2bd7a6a6e99c2ddc, 0x0992ccaf6a6fca05 };
+
+		std::uint64_t s0 = 0;
+		std::uint64_t s1 = 0;
+
+		for (std::uint64_t jump : JUMP)
+		{
+			for (int b = 0; b < 64; ++b)
+			{
+				if (jump & UINT64_C(1) << b)
+				{
+					s0 ^= m_state[0];
+					s1 ^= m_state[1];
+				}
+				operator()();
+			}
+		}
+
+		m_state[0] = s0;
+		m_state[1] = s1;
+	}
+
+	inline constexpr void Xoroshiro128PlusPlus::longJump() noexcept
+	{
+		constexpr std::uint64_t LONG_JUMP[] = { 0x360fd5f2cf8d5d99, 0x9c6e6877736c46e3 };
+
+		std::uint64_t s0 = 0;
+		std::uint64_t s1 = 0;
+
+		for (std::uint64_t jump : LONG_JUMP)
+		{
+			for (int b = 0; b < 64; ++b)
+			{
+				if (jump & UINT64_C(1) << b)
+				{
+					s0 ^= m_state[0];
+					s1 ^= m_state[1];
+				}
+				operator()();
+			}
+		}
+
+		m_state[0] = s0;
+		m_state[1] = s1;
+	}
+
+	inline constexpr Xoroshiro128PlusPlus::result_type Xoroshiro128PlusPlus::min() noexcept
+	{
+		return std::numeric_limits<result_type>::lowest();
+	}
+
+	inline constexpr Xoroshiro128PlusPlus::result_type Xoroshiro128PlusPlus::max() noexcept
+	{
+		return std::numeric_limits<result_type>::max();
+	}
+
+	inline constexpr Xoroshiro128PlusPlus::state_type Xoroshiro128PlusPlus::serialize() const noexcept
+	{
+		return m_state;
+	}
+
+	inline constexpr void Xoroshiro128PlusPlus::deserialize(const state_type state) noexcept
+	{
+		m_state = state;
+	}
+
+	inline constexpr void Xoroshiro128PlusPlus::discard(const unsigned long long n) noexcept
+	{
+		for (unsigned long long i = 0; i < n; ++i) { operator()(); }
+	}
+
+	////////////////////////////////////////////////////////////////
+	//
+	//	xoroshiro128**
+	//
+	inline constexpr Xoroshiro128StarStar::Xoroshiro128StarStar(const std::uint64_t seed) noexcept
+		: m_state(SplitMix64{ seed }.generateSeedSequence<2>()) {}
+
+	inline constexpr Xoroshiro128StarStar::Xoroshiro128StarStar(const state_type state) noexcept
+		: m_state(state) {}
+
+	inline constexpr Xoroshiro128StarStar::result_type Xoroshiro128StarStar::operator()() noexcept
+	{
+		const std::uint64_t s0 = m_state[0];
+		std::uint64_t s1 = m_state[1];
+		const std::uint64_t result = detail::RotL(s0 * 5, 7) * 9;
+		s1 ^= s0;
+		m_state[0] = detail::RotL(s0, 24) ^ s1 ^ (s1 << 16);
+		m_state[1] = detail::RotL(s1, 37);
+		return result;
+	}
+
+	inline constexpr void Xoroshiro128StarStar::jump() noexcept
+	{
+		constexpr std::uint64_t JUMP[] = { 0xdf900294d8f554a5, 0x170865df4b3201fc };
+
+		std::uint64_t s0 = 0;
+		std::uint64_t s1 = 0;
+
+		for (std::uint64_t jump : JUMP)
+		{
+			for (int b = 0; b < 64; ++b)
+			{
+				if (jump & UINT64_C(1) << b)
+				{
+					s0 ^= m_state[0];
+					s1 ^= m_state[1];
+				}
+				operator()();
+			}
+		}
+
+		m_state[0] = s0;
+		m_state[1] = s1;
+	}
+
+	inline constexpr void Xoroshiro128StarStar::longJump() noexcept
+	{
+		constexpr std::uint64_t LONG_JUMP[] = { 0xd2a98b26625eee7b, 0xdddf9b1090aa7ac1 };
+
+		std::uint64_t s0 = 0;
+		std::uint64_t s1 = 0;
+
+		for (std::uint64_t jump : LONG_JUMP)
+		{
+			for (int b = 0; b < 64; ++b)
+			{
+				if (jump & UINT64_C(1) << b)
+				{
+					s0 ^= m_state[0];
+					s1 ^= m_state[1];
+				}
+				operator()();
+			}
+		}
+
+		m_state[0] = s0;
+		m_state[1] = s1;
+	}
+
+	inline constexpr Xoroshiro128StarStar::result_type Xoroshiro128StarStar::min() noexcept
+	{
+		return std::numeric_limits<result_type>::lowest();
+	}
+
+	inline constexpr Xoroshiro128StarStar::result_type Xoroshiro128StarStar::max() noexcept
+	{
+		return std::numeric_limits<result_type>::max();
+	}
+
+	inline constexpr Xoroshiro128StarStar::state_type Xoroshiro128StarStar::serialize() const noexcept
+	{
+		return m_state;
+	}
+
+	inline constexpr void Xoroshiro128StarStar::deserialize(const state_type state) noexcept
+	{
+		m_state = state;
+	}
+
+	inline constexpr void Xoroshiro128StarStar::discard(const unsigned long long n) noexcept
+	{
+		for (unsigned long long i = 0; i < n; ++i) { operator()(); }
+	}
+
+	////////////////////////////////////////////////////////////////
+	//
+	//	xoshiro128+
+	//
+	inline constexpr Xoshiro128Plus::Xoshiro128Plus(const std::uint64_t seed) noexcept
+		: m_state()
+	{
+		SplitMix64 splitmix{ seed };
+
+		for (auto& state : m_state)
+		{
+			state = static_cast<std::uint32_t>(splitmix());
+		}
+	}
+
+	inline constexpr Xoshiro128Plus::Xoshiro128Plus(const state_type state) noexcept
+		: m_state(state) {}
+
+	inline constexpr Xoshiro128Plus::result_type Xoshiro128Plus::operator()() noexcept
+	{
+		const std::uint32_t result = m_state[0] + m_state[3];
+		const std::uint32_t t = m_state[1] << 9;
+		m_state[2] ^= m_state[0];
+		m_state[3] ^= m_state[1];
+		m_state[1] ^= m_state[2];
+		m_state[0] ^= m_state[3];
+		m_state[2] ^= t;
+		m_state[3] = detail::RotL(m_state[3], 11);
+		return result;
+	}
+
+	inline constexpr void Xoshiro128Plus::jump() noexcept
+	{
+		constexpr std::uint32_t JUMP[] = { 0x8764000b, 0xf542d2d3, 0x6fa035c3, 0x77f2db5b };
+
+		std::uint32_t s0 = 0;
+		std::uint32_t s1 = 0;
+		std::uint32_t s2 = 0;
+		std::uint32_t s3 = 0;
+
+		for (std::uint32_t jump : JUMP)
+		{
+			for (int b = 0; b < 32; ++b)
+			{
+				if (jump & UINT32_C(1) << b)
+				{
+					s0 ^= m_state[0];
+					s1 ^= m_state[1];
+					s2 ^= m_state[2];
+					s3 ^= m_state[3];
+				}
+				operator()();
+			}
+		}
+
+		m_state[0] = s0;
+		m_state[1] = s1;
+		m_state[2] = s2;
+		m_state[3] = s3;
+	}
+
+	inline constexpr void Xoshiro128Plus::longJump() noexcept
+	{
+		constexpr std::uint32_t LONG_JUMP[] = { 0xb523952e, 0x0b6f099f, 0xccf5a0ef, 0x1c580662 };
+
+		std::uint32_t s0 = 0;
+		std::uint32_t s1 = 0;
+		std::uint32_t s2 = 0;
+		std::uint32_t s3 = 0;
+
+		for (std::uint32_t jump : LONG_JUMP)
+		{
+			for (int b = 0; b < 32; ++b)
+			{
+				if (jump & UINT32_C(1) << b)
+				{
+					s0 ^= m_state[0];
+					s1 ^= m_state[1];
+					s2 ^= m_state[2];
+					s3 ^= m_state[3];
+				}
+				operator()();
+			}
+		}
+
+		m_state[0] = s0;
+		m_state[1] = s1;
+		m_state[2] = s2;
+		m_state[3] = s3;
+	}
+
+	inline constexpr Xoshiro128Plus::result_type Xoshiro128Plus::min() noexcept
+	{
+		return std::numeric_limits<result_type>::lowest();
+	}
+
+	inline constexpr Xoshiro128Plus::result_type Xoshiro128Plus::max() noexcept
+	{
+		return std::numeric_limits<result_type>::max();
+	}
+
+	inline constexpr Xoshiro128Plus::state_type Xoshiro128Plus::serialize() const noexcept
+	{
+		return m_state;
+	}
+
+	inline constexpr void Xoshiro128Plus::deserialize(const state_type state) noexcept
+	{
+		m_state = state;
+	}
+
+	inline constexpr void Xoshiro128Plus::discard(const unsigned long long n) noexcept
+	{
+		for (unsigned long long i = 0; i < n; ++i) { operator()(); }
+	}
+
+	////////////////////////////////////////////////////////////////
+	//
+	//	xoshiro128++
+	//
+	inline constexpr Xoshiro128PlusPlus::Xoshiro128PlusPlus(const std::uint64_t seed) noexcept
+		: m_state()
+	{
+		SplitMix64 splitmix{ seed };
+
+		for (auto& state : m_state)
+		{
+			state = static_cast<std::uint32_t>(splitmix());
+		}
+	}
+
+	inline constexpr Xoshiro128PlusPlus::Xoshiro128PlusPlus(const state_type state) noexcept
+		: m_state(state) {}
+
+	inline constexpr Xoshiro128PlusPlus::result_type Xoshiro128PlusPlus::operator()() noexcept
+	{
+		const std::uint32_t result = detail::RotL(m_state[0] + m_state[3], 7) + m_state[0];
+		const std::uint32_t t = m_state[1] << 9;
+		m_state[2] ^= m_state[0];
+		m_state[3] ^= m_state[1];
+		m_state[1] ^= m_state[2];
+		m_state[0] ^= m_state[3];
+		m_state[2] ^= t;
+		m_state[3] = detail::RotL(m_state[3], 11);
+		return result;
+	}
+
+	inline constexpr void Xoshiro128PlusPlus::jump() noexcept
+	{
+		constexpr std::uint32_t JUMP[] = { 0x8764000b, 0xf542d2d3, 0x6fa035c3, 0x77f2db5b };
+
+		std::uint32_t s0 = 0;
+		std::uint32_t s1 = 0;
+		std::uint32_t s2 = 0;
+		std::uint32_t s3 = 0;
+
+		for (std::uint32_t jump : JUMP)
+		{
+			for (int b = 0; b < 32; ++b)
+			{
+				if (jump & UINT32_C(1) << b)
+				{
+					s0 ^= m_state[0];
+					s1 ^= m_state[1];
+					s2 ^= m_state[2];
+					s3 ^= m_state[3];
+				}
+				operator()();
+			}
+		}
+
+		m_state[0] = s0;
+		m_state[1] = s1;
+		m_state[2] = s2;
+		m_state[3] = s3;
+	}
+
+	inline constexpr void Xoshiro128PlusPlus::longJump() noexcept
+	{
+		constexpr std::uint32_t LONG_JUMP[] = { 0xb523952e, 0x0b6f099f, 0xccf5a0ef, 0x1c580662 };
+
+		std::uint32_t s0 = 0;
+		std::uint32_t s1 = 0;
+		std::uint32_t s2 = 0;
+		std::uint32_t s3 = 0;
+
+		for (std::uint32_t jump : LONG_JUMP)
+		{
+			for (int b = 0; b < 32; ++b)
+			{
+				if (jump & UINT32_C(1) << b)
+				{
+					s0 ^= m_state[0];
+					s1 ^= m_state[1];
+					s2 ^= m_state[2];
+					s3 ^= m_state[3];
+				}
+				operator()();
+			}
+		}
+
+		m_state[0] = s0;
+		m_state[1] = s1;
+		m_state[2] = s2;
+		m_state[3] = s3;
+	}
+
+	inline constexpr Xoshiro128PlusPlus::result_type Xoshiro128PlusPlus::min() noexcept
+	{
+		return std::numeric_limits<result_type>::lowest();
+	}
+
+	inline constexpr Xoshiro128PlusPlus::result_type Xoshiro128PlusPlus::max() noexcept
+	{
+		return std::numeric_limits<result_type>::max();
+	}
+
+	inline constexpr Xoshiro128PlusPlus::state_type Xoshiro128PlusPlus::serialize() const noexcept
+	{
+		return m_state;
+	}
+
+	inline constexpr void Xoshiro128PlusPlus::deserialize(const state_type state) noexcept
+	{
+		m_state = state;
+	}
+
+	inline constexpr void Xoshiro128PlusPlus::discard(const unsigned long long n) noexcept
+	{
+		for (unsigned long long i = 0; i < n; ++i) { operator()(); }
+	}
+
+	////////////////////////////////////////////////////////////////
+	//
+	//	xoshiro128**
+	//
+	inline constexpr Xoshiro128StarStar::Xoshiro128StarStar(const std::uint64_t seed) noexcept
+		: m_state()
+	{
+		SplitMix64 splitmix{ seed };
+
+		for (auto& state : m_state)
+		{
+			state = static_cast<std::uint32_t>(splitmix());
+		}
+	}
+
+	inline constexpr Xoshiro128StarStar::Xoshiro128StarStar(const state_type state) noexcept
+		: m_state(state) {}
+
+	inline constexpr Xoshiro128StarStar::result_type Xoshiro128StarStar::operator()() noexcept
+	{
+		const std::uint32_t result = detail::RotL(m_state[1] * 5, 7) * 9;
+		const std::uint32_t t = m_state[1] << 9;
+		m_state[2] ^= m_state[0];
+		m_state[3] ^= m_state[1];
+		m_state[1] ^= m_state[2];
+		m_state[0] ^= m_state[3];
+		m_state[2] ^= t;
+		m_state[3] = detail::RotL(m_state[3], 11);
+		return result;
+	}
+
+	inline constexpr void Xoshiro128StarStar::jump() noexcept
+	{
+		constexpr std::uint32_t JUMP[] = { 0x8764000b, 0xf542d2d3, 0x6fa035c3, 0x77f2db5b };
+
+		std::uint32_t s0 = 0;
+		std::uint32_t s1 = 0;
+		std::uint32_t s2 = 0;
+		std::uint32_t s3 = 0;
+
+		for (std::uint32_t jump : JUMP)
+		{
+			for (int b = 0; b < 32; ++b)
+			{
+				if (jump & UINT32_C(1) << b)
+				{
+					s0 ^= m_state[0];
+					s1 ^= m_state[1];
+					s2 ^= m_state[2];
+					s3 ^= m_state[3];
+				}
+				operator()();
+			}
+		}
+
+		m_state[0] = s0;
+		m_state[1] = s1;
+		m_state[2] = s2;
+		m_state[3] = s3;
+	}
+
+	inline constexpr void Xoshiro128StarStar::longJump() noexcept
+	{
+		constexpr std::uint32_t LONG_JUMP[] = { 0xb523952e, 0x0b6f099f, 0xccf5a0ef, 0x1c580662 };
+
+		std::uint32_t s0 = 0;
+		std::uint32_t s1 = 0;
+		std::uint32_t s2 = 0;
+		std::uint32_t s3 = 0;
+
+		for (std::uint32_t jump : LONG_JUMP)
+		{
+			for (int b = 0; b < 32; ++b)
+			{
+				if (jump & UINT32_C(1) << b)
+				{
+					s0 ^= m_state[0];
+					s1 ^= m_state[1];
+					s2 ^= m_state[2];
+					s3 ^= m_state[3];
+				}
+				operator()();
+			}
+		}
+
+		m_state[0] = s0;
+		m_state[1] = s1;
+		m_state[2] = s2;
+		m_state[3] = s3;
+	}
+
+	inline constexpr Xoshiro128StarStar::result_type Xoshiro128StarStar::min() noexcept
+	{
+		return std::numeric_limits<result_type>::lowest();
+	}
+
+	inline constexpr Xoshiro128StarStar::result_type Xoshiro128StarStar::max() noexcept
+	{
+		return std::numeric_limits<result_type>::max();
+	}
+
+	inline constexpr Xoshiro128StarStar::state_type Xoshiro128StarStar::serialize() const noexcept
+	{
+		return m_state;
+	}
+
+	inline constexpr void Xoshiro128StarStar::deserialize(const state_type state) noexcept
+	{
+		m_state = state;
+	}
+
+	inline constexpr void Xoshiro128StarStar::discard(const unsigned long long n) noexcept
+	{
+		for (unsigned long long i = 0; i < n; ++i) { operator()(); }
+	}
+
+	////////////////////////////////////////////////////////////////
+	//
+	//	xoroshiro64*
+	//
+	inline constexpr Xoroshiro64Star::Xoroshiro64Star(const std::uint64_t seed) noexcept
+		: m_state()
+	{
+		SplitMix64 splitmix{ seed };
+
+		for (auto& state : m_state)
+		{
+			state = static_cast<std::uint32_t>(splitmix());
+		}
+	}
+
+	inline constexpr Xoroshiro64Star::Xoroshiro64Star(const state_type state) noexcept
+		: m_state(state) {}
+
+	inline constexpr Xoroshiro64Star::result_type Xoroshiro64Star::operator()() noexcept
+	{
+		const std::uint32_t s0 = m_state[0];
+		std::uint32_t s1 = m_state[1];
+
+		const std::uint32_t result = s0 * 0x9E3779BB;
+
+		s1 ^= s0;
+		m_state[0] = detail::RotL(s0, 26) ^ s1 ^ (s1 << 9);
+		m_state[1] = detail::RotL(s1, 13);
+
+		return result;
+	}
+
+	inline constexpr Xoroshiro64Star::result_type Xoroshiro64Star::min() noexcept
+	{
+		return std::numeric_limits<result_type>::lowest();
+	}
+
+	inline constexpr Xoroshiro64Star::result_type Xoroshiro64Star::max() noexcept
+	{
+		return std::numeric_limits<result_type>::max();
+	}
+
+	inline constexpr Xoroshiro64Star::state_type Xoroshiro64Star::serialize() const noexcept
+	{
+		return m_state;
+	}
+
+	inline constexpr void Xoroshiro64Star::deserialize(const state_type state) noexcept
+	{
+		m_state = state;
+	}
+
+	inline constexpr void Xoroshiro64Star::discard(const unsigned long long n) noexcept
+	{
+		for (unsigned long long i = 0; i < n; ++i) { operator()(); }
+	}
+
+	////////////////////////////////////////////////////////////////
+	//
+	//	xoroshiro64**
+	//
+	inline constexpr Xoroshiro64StarStar::Xoroshiro64StarStar(const std::uint64_t seed) noexcept
+		: m_state()
+	{
+		SplitMix64 splitmix{ seed };
+
+		for (auto& state : m_state)
+		{
+			state = static_cast<std::uint32_t>(splitmix());
+		}
+	}
+
+	inline constexpr Xoroshiro64StarStar::Xoroshiro64StarStar(const state_type state) noexcept
+		: m_state(state) {}
+
+	inline constexpr Xoroshiro64StarStar::result_type Xoroshiro64StarStar::operator()() noexcept
+	{
+		const std::uint32_t s0 = m_state[0];
+		std::uint32_t s1 = m_state[1];
+
+		const std::uint32_t result = detail::RotL(s0 * 0x9E3779BB, 5) * 5;
+
+		s1 ^= s0;
+		m_state[0] = detail::RotL(s0, 26) ^ s1 ^ (s1 << 9);
+		m_state[1] = detail::RotL(s1, 13);
+
+		return result;
+	}
+
+	inline constexpr Xoroshiro64StarStar::result_type Xoroshiro64StarStar::min() noexcept
+	{
+		return std::numeric_limits<result_type>::lowest();
+	}
+
+	inline constexpr Xoroshiro64StarStar::result_type Xoroshiro64StarStar::max() noexcept
+	{
+		return std::numeric_limits<result_type>::max();
+	}
+
+	inline constexpr Xoroshiro64StarStar::state_type Xoroshiro64StarStar::serialize() const noexcept
+	{
+		return m_state;
+	}
+
+	inline constexpr void Xoroshiro64StarStar::deserialize(const state_type state) noexcept
+	{
+		m_state = state;
+	}
+
+	inline constexpr void Xoroshiro64StarStar::discard(const unsigned long long n) noexcept
+	{
+		for (unsigned long long i = 0; i < n; ++i) { operator()(); }
+	}
+
+	////////////////////////////////////////////////////////////////
+	//
+	//	便捷工具函数
+	//
+
+	// 默认线程局部引擎，使用 std::random_device 播种
+	[[nodiscard]]
+	inline Xoshiro256StarStar& DefaultEngine()
+	{
+		thread_local Xoshiro256StarStar engine{ [] {
+			std::random_device rd;
+			return (static_cast<std::uint64_t>(rd()) << 32) | rd();
+		}() };
+		return engine;
+	}
+
+	// 生成非确定性的 64 位种子
+	[[nodiscard]]
+	inline std::uint64_t RandomSeed()
+	{
+		std::random_device rd;
+		return (static_cast<std::uint64_t>(rd()) << 32) | rd();
+	}
+
+	// 生成 [min, max] 范围内的随机整数
+	template <std::integral T = int>
+	[[nodiscard]]
+	inline T RandInt(T min, T max)
+	{
+		std::uniform_int_distribution<T> dist(min, max);
+		return dist(DefaultEngine());
+	}
+
+	// 生成 [0, max] 范围内的随机整数
+	template <std::integral T = int>
+	[[nodiscard]]
+	inline T RandInt(T max)
+	{
+		return RandInt<T>(T{0}, max);
+	}
+
+	// 生成 [min, max) 范围内的随机浮点数
+	template <std::floating_point T = double>
+	[[nodiscard]]
+	inline T RandReal(T min = T{0}, T max = T{1})
+	{
+		std::uniform_real_distribution<T> dist(min, max);
+		return dist(DefaultEngine());
+	}
+
+	// 生成随机布尔值，为 true 的概率为 p
+	[[nodiscard]]
+	inline bool RandBool(double p = 0.5)
+	{
+		return RandReal<double>(0.0, 1.0) < p;
+	}
+
+	// 从容器中随机取一个元素
+	template <class Container>
+	[[nodiscard]]
+	inline decltype(auto) RandElement(Container&& c)
+	{
+		using Size = typename std::remove_reference_t<Container>::size_type;
+		return c[RandInt<Size>(static_cast<Size>(c.size() - 1))];
+	}
+
+	// 指定引擎的重载版本
+	template <std::integral T, class Engine>
+	[[nodiscard]]
+	inline T RandInt(Engine& engine, T min, T max)
+	{
+		std::uniform_int_distribution<T> dist(min, max);
+		return dist(engine);
+	}
+
+	template <std::floating_point T, class Engine>
+	[[nodiscard]]
+	inline T RandReal(Engine& engine, T min = T{0}, T max = T{1})
+	{
+		std::uniform_real_distribution<T> dist(min, max);
+		return dist(engine);
+	}
+
+}

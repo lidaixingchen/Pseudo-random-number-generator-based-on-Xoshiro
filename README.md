@@ -1,243 +1,123 @@
-# Xoshiro-cpp <a href="https://github.com/Reputeless/Xoshiro-cpp/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-MIT-4aaa4a"></a> 
-**Xoshiro-cpp** 是一个适用于现代 C++ 的纯头文件伪随机数生成器库。  
-基于 **David Blackman 和 Sebastiano Vigna 的 [xoshiro/xoroshiro 生成器](http://prng.di.unimi.it/)**。
+# Random.hpp
 
-![](xoshiro-cpp.png)
+基于 **xoshiro/xoroshiro** 算法族的纯头文件伪随机数生成器库，面向 **C++23**。
+
+原始算法：[David Blackman & Sebastiano Vigna](http://prng.di.unimi.it/)
+原始 C++ 封装：[Ryo Suzuki (Xoshiro-cpp)](https://github.com/Reputeless/Xoshiro-cpp)
 
 ## 特性
-- 符合 **`std::uniform_random_bit_generator` 概念** (C++20)
-  - 可配合 `std::uniform_int_distribution`、`std::shuffle` 及其他标准库函数使用
-- 在 C++17 中绝大部分为 **`constexpr`**
-- 支持序列化 / 反序列化
-- 实用函数 `double DoubleFromBits(uint64 v);`
-  - 将给定的 uint64 值 `v` 转换为 [0.0, 1.0) 范围内的 64 位浮点值
 
-PRNG (伪随机数生成器) | 输出位数 | 周期 | 内存占用
---|--|--|--
-SplitMix64   | 64 bits | 2^64    | 8 bytes
-xoshiro256+  | 64 bits | 2^256-1 | 32 bytes
-xoshiro256++ | 64 bits | 2^256-1 | 32 bytes
-xoshiro256** | 64 bits | 2^256-1 | 32 bytes
-xoroshiro128+  | 64 bits | 2^128-1 | 16 bytes
-xoroshiro128++ | 64 bits | 2^128-1 | 16 bytes
-xoroshiro128** | 64 bits | 2^128-1 | 16 bytes
-xoshiro128+  | 32 bits | 2^128-1 | 16 bytes
-xoshiro128++ | 32 bits | 2^128-1 | 16 bytes
-xoshiro128** | 32 bits | 2^128-1 | 16 bytes
-xoroshiro64* | 32 bits | 2^64-1  | 8 bytes
-xoroshiro64** | 32 bits | 2^64-1  | 8 bytes
+- 满足 `std::uniform_random_bit_generator` 概念，可直接配合标准库 distribution / `std::shuffle` 使用
+- 全 `constexpr`，编译期可用
+- 内置便捷 API：`RandInt` / `RandReal` / `RandBool` / `RandElement`
+- 线程局部默认引擎（`DefaultEngine()`），零配置即用
+- 支持 `jump()` / `longJump()` 并行子序列、`discard(n)` 跳过、`serialize()` / `deserialize()` 状态持久化
+- 12 个引擎全覆盖
 
-## 示例
+## 引擎一览
 
-```C++
-# include <iostream>
-# include "XoshiroCpp.hpp"
+| 引擎 | 输出 | 周期 | 状态 | 适用场景 |
+|------|------|------|------|----------|
+| Xoshiro256StarStar | 64-bit | 2^256-1 | 32B | 通用首选，统计质量最优 |
+| Xoshiro256PlusPlus | 64-bit | 2^256-1 | 32B | 通用，略快于 ** |
+| Xoshiro256Plus | 64-bit | 2^256-1 | 32B | 最快，低位质量稍弱 |
+| Xoroshiro128PlusPlus | 64-bit | 2^128-1 | 16B | 内存受限场景 |
+| Xoroshiro128StarStar | 64-bit | 2^128-1 | 16B | 同上，统计更优 |
+| Xoroshiro128Plus | 64-bit | 2^128-1 | 16B | 同上，最快 |
+| Xoshiro128PlusPlus | 32-bit | 2^128-1 | 16B | 32 位平台 |
+| Xoshiro128StarStar | 32-bit | 2^128-1 | 16B | 32 位平台，统计更优 |
+| Xoshiro128Plus | 32-bit | 2^128-1 | 16B | 32 位平台，最快 |
+| Xoroshiro64StarStar | 32-bit | 2^64-1 | 8B | 极端内存受限 |
+| Xoroshiro64Star | 32-bit | 2^64-1 | 8B | 极端内存受限，最快 |
+| SplitMix64 | 64-bit | 2^64 | 8B | 种子扩展 / 哈希，非通用 PRNG |
+
+## 快速上手
+
+```cpp
+#include "Random.hpp"
+#include <iostream>
 
 int main()
 {
-    using namespace XoshiroCpp;
-
-    const std::uint64_t seed = 12345;
-
-    Xoshiro256PlusPlus rng(seed);
-
-    for (int i = 0; i < 5; ++i)
-    {
-        std::cout << rng() << '\n';
-    }
+    // 最简用法：便捷函数（内部使用线程局部 Xoshiro256StarStar）
+    std::cout << xoshiro::RandInt(1, 6) << '\n';   // 掷骰子 [1, 6]
+    std::cout << xoshiro::RandReal() << '\n';       // [0.0, 1.0)
+    std::cout << xoshiro::RandBool(0.3) << '\n';    // 30% 概率为 true
 }
-
 ```
 
-```
-10201931350592234856
-3780764549115216544
-1570246627180645737
-3237956550421933520
-4899705286669081817
+## 手动管理引擎
 
-```
-
----
-
-```c++
-# include <iostream>
-# include <random>
-# include "XoshiroCpp.hpp"
+```cpp
+#include "Random.hpp"
+#include <random>
+#include <iostream>
 
 int main()
 {
-    using namespace XoshiroCpp;
+    // 用真随机种子创建引擎
+    xoshiro::Xoshiro256StarStar rng{ xoshiro::RandomSeed() };
 
-    const std::uint64_t seed = 12345;
+    // 指定引擎的便捷函数
+    std::cout << xoshiro::RandInt(rng, 0, 99) << '\n';
 
-    Xoshiro256PlusPlus rng(seed);
+    // 配合标准库 distribution
+    std::normal_distribution<double> norm(0.0, 1.0);
+    std::cout << norm(rng) << '\n';
 
-    std::uniform_int_distribution<int> dist(1, 6);
+    // 序列化 / 反序列化
+    auto state = rng.serialize();
+    rng.deserialize(state);
 
-    for (int i = 0; i < 5; ++i)
-    {
-        std::cout << dist(rng) << '\n';
-    }
+    // 跳跃（并行子序列）
+    rng.jump();      // 前进 2^128 步
+    rng.longJump();  // 前进 2^192 步
+
+    // 跳过
+    rng.discard(1000);
 }
-
 ```
 
-```
-1
-5
-4
-3
-6
+## 配合 std::shuffle
 
-```
-
----
-
-```c++
-# include <algorithm>
-# include <iostream>
-# include "XoshiroCpp.hpp"
+```cpp
+#include "Random.hpp"
+#include <algorithm>
+#include <array>
+#include <iostream>
 
 int main()
 {
-    using namespace XoshiroCpp;
-
-    const std::uint64_t seed = 12345;
-
-    Xoshiro256PlusPlus rng(seed);
+    xoshiro::Xoshiro256PlusPlus rng{ 12345 };
 
     std::array<int, 10> ar = { 0,1,2,3,4,5,6,7,8,9 };
-
     std::shuffle(ar.begin(), ar.end(), rng);
 
     for (const auto& x : ar)
-    {
-        std::cout << x << '\n';
-    }
+        std::cout << x << ' ';
 }
-
 ```
 
-```
-6
-3
-7
-2
-8
-5
-4
-9
-1
-0
+## 从容器中随机取元素
 
-```
-
----
-
-```c++
-# include <iostream>
-# include "XoshiroCpp.hpp"
+```cpp
+#include "Random.hpp"
+#include <vector>
+#include <iostream>
 
 int main()
 {
-    using namespace XoshiroCpp;
-
-    const std::uint64_t seed = 12345;
-
-    Xoshiro256PlusPlus rng(seed);
-
-    for (int i = 0; i < 5; ++i)
-    {
-        std::cout << DoubleFromBits(rng()) << '\n';
-    }
+    std::vector<int> items = { 10, 20, 30, 40, 50 };
+    std::cout << xoshiro::RandElement(items) << '\n';
 }
-
 ```
 
-```
-0.553048
-0.204956
-0.0851232
-0.17553
-0.265614
+## 编译要求
 
-```
+- C++23 编译器（GCC 14+ / Clang 18+ / MSVC 17.10+）
+- 无外部依赖，纯头文件
 
----
+## 致谢
 
-```c++
-# include <iostream>
-# include "XoshiroCpp.hpp"
-
-int main()
-{
-    using namespace XoshiroCpp;
-
-    // 这个示例的种子序列 { 111, 222, 333, 444 } 分布不佳
-    // (含有大量的 '0' 位)，不适合直接用于生成器的内部状态。
-    // 可以使用 SplitMix64 PRNG 来增加熵。
-    const Xoshiro256Plus::state_type initialStateA =
-    {
-        SplitMix64{ 111 }(),
-        SplitMix64{ 222 }(),
-        SplitMix64{ 333 }(),
-        SplitMix64{ 444 }(),
-    };
-
-    Xoshiro256PlusPlus rngA(initialStateA);
-
-    for (int i = 0; i < 3; ++i)
-    {
-        std::cout << rngA() << '\n';
-    }
-
-    const Xoshiro256Plus::state_type state = rngA.serialize();
-
-    Xoshiro256PlusPlus rngB(state);
-
-    for (int i = 0; i < 3; ++i)
-    {
-        std::cout << std::boolalpha << (rngA() == rngB()) << '\n';
-    }
-
-    rngB.deserialize(initialStateA);
-
-    for (int i = 0; i < 3; ++i)
-    {
-        std::cout << rngB() << '\n';
-    }
-}
-
-```
-
-```
-9228892280983206813
-11892737616047535485
-12786908792686548306
-true
-true
-true
-9228892280983206813
-11892737616047535485
-12786908792686548306
-
-```
-
-## 路线图 (Roadmap)
-
-* [x] SplitMix64
-* [x] xoshiro256+
-* [x] xoshiro256++
-* [x] xoshiro256** - [x] xoroshiro128+
-* [x] xoroshiro128++
-* [x] xoroshiro128**
-* [x] xoshiro128+
-* [x] xoshiro128++
-* [x] xoshiro128**
-* [x] xoroshiro64*
-* [x] xoroshiro64**
-
-## 许可证
-
-Xoshiro-cpp 根据 MIT 许可证分发。
+- 算法设计：David Blackman & Sebastiano Vigna
+- 原始 C++ 封装：Ryo Suzuki ([Xoshiro-cpp](https://github.com/Reputeless/Xoshiro-cpp), MIT License)
