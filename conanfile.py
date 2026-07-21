@@ -5,7 +5,7 @@ import os
 
 class RandXConan(ConanFile):
     name = "randx"
-    version = "1.2.0"
+    version = "1.2.1"
     description = "Modern, fast, and header-only C++ pseudo-random number generator and distribution library"
     homepage = "https://github.com/lidaixingchen/RandX"
     url = homepage

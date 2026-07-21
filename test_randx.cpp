@@ -684,10 +684,10 @@ TEST_SUITE("新增 API")
 // ============================================================================
 TEST_SUITE("RandSample 迭代器版")
 {
-    TEST_CASE("随机访问路径（索引分支）：n²>=size 走索引数组")
+    TEST_CASE("随机访问路径（索引分支）：n·64>=size 走索引数组")
     {
         std::vector<int> v = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
-        // n=5, size=10, n²=25 >= 10 → 索引数组分支
+        // n=5, size=10, n·64=320 >= 10 → 索引数组分支
         auto sample = RandX::RandSample(v.begin(), v.end(), 5);
         CHECK(sample.size() == 5);
         for (int x : sample)
@@ -699,11 +699,11 @@ TEST_SUITE("RandSample 迭代器版")
         }
     }
 
-    TEST_CASE("随机访问路径（hash-set 分支）：n²<size 走 hash-set")
+    TEST_CASE("随机访问路径（hash-set 分支）：n·64<size 走 hash-set")
     {
         std::vector<int> v(10000);
         for (int i = 0; i < 10000; ++i) v[static_cast<std::size_t>(i)] = i;
-        // n=5, size=10000, n²=25 < 10000 → hash-set 分支
+        // n=5, size=10000, n·64=320 < 10000 → hash-set 分支
         auto sample = RandX::RandSample(v.begin(), v.end(), 5);
         CHECK(sample.size() == 5);
         for (int x : sample)
@@ -830,7 +830,7 @@ TEST_SUITE("RandSample 迭代器版")
 
     TEST_CASE("均匀性（hash-set）：前后半段均衡")
     {
-        // n² < size 强制走 hash-set 分支：N=10000, n=5, n²=25<10000
+        // n·64 < size 强制走 hash-set 分支：N=10000, n=5, n·64=320<10000
         constexpr int N = 10000;
         constexpr int n = 5;
         constexpr int TRIALS = 10000;
@@ -1028,7 +1028,7 @@ TEST_SUITE("RandChar 预设字符集")
         }
     }
 
-    TEST_CASE("RandChar 8 种字符集全覆盖")
+    TEST_CASE("RandChar 9 种字符集全覆盖")
     {
         using CS = RandX::CharSet;
         const std::string alnum = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -1039,6 +1039,7 @@ TEST_SUITE("RandChar 预设字符集")
         const std::string hexS = "0123456789abcdefABCDEF";
         const std::string printable = "!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
         const std::string base64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        const std::string base64UrlSafe = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
         for (int i = 0; i < MC_TRIALS_100; ++i)
         {
@@ -1050,6 +1051,7 @@ TEST_SUITE("RandChar 预设字符集")
             CHECK(hexS.find(RandX::RandChar(CS::Hex)) != std::string::npos);
             CHECK(printable.find(RandX::RandChar(CS::Printable)) != std::string::npos);
             CHECK(base64.find(RandX::RandChar(CS::Base64)) != std::string::npos);
+            CHECK(base64UrlSafe.find(RandX::RandChar(CS::Base64UrlSafe)) != std::string::npos);
         }
     }
 
@@ -1123,6 +1125,50 @@ TEST_SUITE("RandChar 预设字符集")
         CHECK(s.size() == 12);
         for (char c : s)
             CHECK(base64.find(c) != std::string::npos);
+    }
+
+    TEST_CASE("RandChar(CharSet::Base64UrlSafe) 全部属于 URL-safe 字母表")
+    {
+        const std::string urlSafeSet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+        for (int i = 0; i < MC_TRIALS_1K; ++i)
+        {
+            char c = RandX::RandChar(RandX::CharSet::Base64UrlSafe);
+            CHECK(urlSafeSet.find(c) != std::string::npos);
+        }
+    }
+
+    TEST_CASE("RandString(12, CharSet::Base64UrlSafe) RFC 4648 §5 合规")
+    {
+        const std::string urlSafeSet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+        auto s = RandX::RandString(12, RandX::CharSet::Base64UrlSafe);
+        CHECK(s.size() == 12);
+        for (char c : s)
+            CHECK(urlSafeSet.find(c) != std::string::npos);
+    }
+
+    TEST_CASE("Base64 vs Base64UrlSafe 仅末两字符不同（引擎重载同种子）")
+    {
+        // 引擎重载下 uniform_int_distribution(0,63) 产生相同索引序列，
+        // 仅 index=62（Base64:'+' / UrlSafe:'-'）与 index=63（Base64:'/' / UrlSafe:'_'）处字符不同
+        RandX::Xoshiro256StarStar rng1{ 42 }, rng2{ 42 };
+        const std::string base64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        const std::string urlSafe = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+        for (int i = 0; i < MC_TRIALS_100; ++i)
+        {
+            char c1 = RandX::RandChar(rng1, RandX::CharSet::Base64);
+            char c2 = RandX::RandChar(rng2, RandX::CharSet::Base64UrlSafe);
+            // 同索引：若 index<62 则字符相同，index=62/63 则不同
+            if (c1 == c2)
+            {
+                CHECK(base64.find(c1) < 62);
+            }
+            else
+            {
+                // 差异仅允许在 +→- 与 /→_（doctest 禁止 || 于 CHECK 宏内，先求值 bool）
+                const bool validDiff = (c1 == '+' && c2 == '-') || (c1 == '/' && c2 == '_');
+                CHECK(validDiff);
+            }
+        }
     }
 
     TEST_CASE("RandChar(CharSet::Hex) 均匀性 ±3σ")

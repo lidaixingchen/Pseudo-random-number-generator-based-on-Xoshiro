@@ -114,7 +114,7 @@ int main()
 |           | `ShuffleCE(first, last)`             | 编译期洗牌                                                                        | ❌ C++23 专属 |
 |           | `ShuffledArray<T,N,Seed>(arr)`       | 编译期洗牌数组版                                                                     | ❌ C++23 专属 |
 
-> **CharSet 枚举**：`Alphanumeric` / `Alpha` / `Lower` / `Upper` / `Digit` / `Hex` / `Printable` / `Base64`，覆盖常见字符集场景。
+> **CharSet 枚举**：`Alphanumeric` / `Alpha` / `Lower` / `Upper` / `Digit` / `Hex` / `Printable` / `Base64` / `Base64UrlSafe`，覆盖常见字符集场景（`Base64UrlSafe` 为 RFC 4648 §5 URL-safe 变体，字母表 `[A-Za-z0-9-_]`）。
 
 所有函数默认使用线程局部 `Xoshiro256StarStar` 引擎，也支持传入自定义引擎：`RandInt(rng, min, max)`。
 
@@ -292,7 +292,7 @@ conan create . --version=1.2.0
 ```python
 # conanfile.txt
 [requires]
-randx/1.2.0
+randx/1.2.1
 
 [generators]
 CMakeDeps
@@ -334,6 +334,19 @@ g++ -std=c++20 -Wall -Wextra -I third_party -o test_randx_cpp17 test_randx_cpp17
 | MSVC (v145) | Windows 2025 | C++17 / C++23         |
 
 C++20 矩阵专门覆盖 `char8_t` 条件编译路径。覆盖率任务使用 lcov，阈值 80%。
+
+## 变更记录
+
+### v1.2.1
+
+- **新增 `CharSet::Base64UrlSafe`**：RFC 4648 §5 URL-safe 变体，字母表 `[A-Za-z0-9-_]`（`+` → `-`，`/` → `_`），适用于 URL/文件名安全的随机 token 生成。
+- **`RandSample` 切换阈值修订**：hash-set 与索引数组分支的切换点由 `n² < size` 改为 `n·64 < size`（具名常量 `detail::HashSetThresholdK = 64`）。原阈值在大容器小样本场景（n ∈ [√N, N/127]）导致 3–25× 性能损失与 80 MB 不必要内存占用；新阈值基于线性交叉点实测（n ≈ N/127），K=64 留 2× 裕度。API 与输出分布不变，纯性能改进。
+
+### v1.2.0
+
+- 7 引擎全覆盖（新增 SFC64 / RomuDuoJr）
+- 16 种统计分布、ranges 风格 API、编译期洗牌
+- CMake / vcpkg / Conan 包管理支持
 
 ## 致谢
 

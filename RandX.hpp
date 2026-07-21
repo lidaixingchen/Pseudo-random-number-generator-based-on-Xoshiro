@@ -1614,6 +1614,9 @@ namespace RandX
 		// 前向声明（定义见下方"编译期随机"节）
 		[[nodiscard]]
 		inline constexpr std::uint64_t BoundedRand(Xoshiro256StarStar& rng, std::uint64_t range) noexcept;
+
+		// RandSample 分支选择阈值：n·K < size 时用 hash-set（实测交叉点 n≈N/127，K=64 留 2× 裕度）
+		inline constexpr std::uint64_t HashSetThresholdK = 64;
 	}
 
 	////////////////////////////////////////////////////////////////
@@ -1633,7 +1636,8 @@ namespace RandX
 		Digit,         // [0-9]           10 个
 		Hex,           // [0-9a-fA-F]     16 个
 		Printable,     // [!-~]           94 个可打印 ASCII
-		Base64,        // [A-Za-z0-9+/]   64 个（RFC 4648 标准变体）
+		Base64,        // [A-Za-z0-9+/]   64 个（RFC 4648 §4 标准变体）
+		Base64UrlSafe, // [A-Za-z0-9-_]   64 个（RFC 4648 §5 URL-safe 变体）
 	};
 
 	namespace detail
@@ -1660,6 +1664,8 @@ namespace RandX
 				return "!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
 			case CharSet::Base64:
 				return "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+			case CharSet::Base64UrlSafe:
+				return "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 			}
 			return "";
 		}
@@ -1737,11 +1743,11 @@ namespace RandX
 
 		auto& rng = DefaultEngine();
 
-		// 分支选择：n² < size 时 hash-set 内存优（O(n)）；否则索引数组常数优（O(N)）
-		// 用 uint64_t 避免 n*n 溢出（n 是 iter_difference_t，可能 32 位）
-		const auto nSq = static_cast<std::uint64_t>(n) * static_cast<std::uint64_t>(n);
+		// 分支选择：n·K < size 时 hash-set 内存优（O(n)）；否则索引数组常数优（O(N)）
+		// 用 uint64_t 避免 n*K 溢出（n 是 iter_difference_t，可能 32 位）
 		const auto sizeU = static_cast<std::uint64_t>(size);
-		if (nSq < sizeU)
+		// 线性阈值：n·K < size 时用 hash-set（实测交叉点 n≈N/127，K=64 留 2× 裕度）
+		if (static_cast<std::uint64_t>(n) * detail::HashSetThresholdK < sizeU)
 		{
 			// hash-set 分支：O(n) 内存，O(n) 期望时间
 			std::unordered_set<Diff> selected;
@@ -1829,9 +1835,9 @@ namespace RandX
 		if (n >= size)
 			return std::vector<T>(first, last);
 
-		const auto nSq = static_cast<std::uint64_t>(n) * static_cast<std::uint64_t>(n);
 		const auto sizeU = static_cast<std::uint64_t>(size);
-		if (nSq < sizeU)
+		// 线性阈值：n·K < size 时用 hash-set（实测交叉点 n≈N/127，K=64 留 2× 裕度）
+		if (static_cast<std::uint64_t>(n) * detail::HashSetThresholdK < sizeU)
 		{
 			// hash-set 分支：用 RandInt 适配任意引擎
 			std::unordered_set<Diff> selected;

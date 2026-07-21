@@ -175,10 +175,10 @@ static double BenchmarkRandVector(const char* name)
 
 // RandSample 基准测试的容器大小（大 N 小 n 场景）
 static constexpr int SampleSize = 1'000'000;
-// 抽样数量（n² < size，强制走 hash-set 分支）
+// 抽样数量（n·64 < size，强制走 hash-set 分支）
 static constexpr int SampleN_HashSet = 100;
-// 抽样数量（n² >= size，走索引数组分支）
-static constexpr int SampleN_Index = 2000;
+// 抽样数量（n·64 >= size，走索引数组分支）
+static constexpr int SampleN_Index = 20000;
 // 测试轮数
 static constexpr int SampleTrials = 100;
 
@@ -203,7 +203,7 @@ static double BenchmarkRandSampleContainer(const char* name)
 	return opsPerSec;
 }
 
-// 测量 RandSample 迭代器版（hash-set 分支：n² < size）
+// 测量 RandSample 迭代器版（hash-set 分支：n·64 < size）
 static double BenchmarkRandSampleHashSet(const char* name)
 {
 	std::vector<int> data(static_cast<std::size_t>(SampleSize));
@@ -224,7 +224,7 @@ static double BenchmarkRandSampleHashSet(const char* name)
 	return opsPerSec;
 }
 
-// 测量 RandSample 迭代器版（索引数组分支：n² >= size）
+// 测量 RandSample 迭代器版（索引数组分支：n·64 >= size）
 static double BenchmarkRandSampleIndex(const char* name)
 {
 	std::vector<int> data(static_cast<std::size_t>(SampleSize));
@@ -372,11 +372,12 @@ int main()
 	std::printf("[6] RandSample 迭代器版性能对比 (SampleSize=%d, trials=%d)\n", SampleSize, SampleTrials);
 	std::printf("    大 N 小 n 场景：1M 元素中抽 %d（hash-set 分支）/ %d（索引分支）\n",
 		SampleN_HashSet, SampleN_Index);
+	std::printf("    切换阈值：n·64 < size（v1.2.1 修订，原 n²<size）\n");
 	std::printf("----------------------------------------------------------------\n");
 
 	BenchmarkRandSampleContainer("RandSample(container, n=100)");
 	BenchmarkRandSampleHashSet("RandSample(iter, n=100, hash-set)");
-	BenchmarkRandSampleIndex("RandSample(iter, n=2000, index)");
+	BenchmarkRandSampleIndex("RandSample(iter, n=20000, index)");
 	BenchmarkRandSampleReservoir("RandSample(list, n=100, reservoir)");
 
 	std::printf("\n");
