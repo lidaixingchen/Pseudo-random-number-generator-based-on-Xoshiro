@@ -19,7 +19,7 @@ jobs:
 
       - name: Install Doxygen 1.10.0 & Graphviz
         run: |
-          wget -q https://doxygen.nl/files/doxygen-1.10.0.linux.bin.tar.gz
+          wget -q https://github.com/doxygen/doxygen/releases/download/Release_1_10_0/doxygen-1.10.0.linux.bin.tar.gz
           tar xzf doxygen-1.10.0.linux.bin.tar.gz
           echo "$PWD/doxygen-1.10.0/bin" >> $GITHUB_PATH
           sudo apt-get install -y graphviz
