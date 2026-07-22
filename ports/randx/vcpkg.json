@@ -4,5 +4,14 @@
   "description": "Modern, fast, and header-only C++ pseudo-random number generator and distribution library (C++17/C++23).",
   "homepage": "https://github.com/lidaixingchen/RandX",
   "license": "MIT",
-  "dependencies": []
+  "dependencies": [
+    {
+      "name": "vcpkg-cmake",
+      "host": true
+    },
+    {
+      "name": "vcpkg-cmake-config",
+      "host": true
+    }
+  ]
 }

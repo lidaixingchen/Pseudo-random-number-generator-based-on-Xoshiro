@@ -745,6 +745,25 @@ namespace RandX
 		requires IndexableState<typename E::state_type>;
 	};
 
+	// 可跳跃引擎概念：支持 jump() 前进 2^N 步
+	// 满足此概念的引擎可通过 jump() 创建并行不重叠子序列
+	// 当前满足：Xoshiro256StarStar, Xoroshiro128StarStar, Xoshiro128StarStar
+	// 不满足：SplitMix64, SFC64, RomuDuoJr, Xoroshiro64StarStar, ChaCha20
+	// 注意：ChaCha20 不提供 jump（CSPRNG 安全约束，状态导出违背前向安全模型）
+	template <class E>
+	concept JumpableEngine = requires(E& e) {
+		{ e.jump() } -> std::same_as<void>;
+	};
+
+	// 流式引擎概念：可通过 MakeStreamEngine 创建互不重叠的子序列流
+	// 当前约束与 JumpableEngine 完全相同，仅为语义区分与 Philox 预留
+	// JumpableEngine 描述能力（能 jump），StreamEngine 描述用途（能创建流）
+	// 未来 counter-based 引擎（如 Philox）可通过 counter 偏移创建流，
+	// 届时此概念可扩展为 JumpableEngine<E> || CounterBasedEngine<E>
+	// 注意：当前不要假设两者约束不同，等 Philox 落地时再引入 CounterBasedEngine
+	template <class E>
+	concept StreamEngine = JumpableEngine<E>;
+
 	// 迭代器可填充约束（RandFill 用）
 	template <class It, class T>
 	concept RandFillable = std::output_iterator<It, T>
@@ -2594,8 +2613,9 @@ namespace RandX
 	// 从同一种子创建第 streamId 个不重叠子序列的引擎
 	// 每个流之间间隔 2^128 步（xoshiro256）或 2^64 步（xoroshiro128/xoshiro128）
 	// 注意：Xoroshiro64 系列无 jump 函数，不支持多流
+	// 约束用 detail::StreamEngine 概念（语义清晰，错误信息含概念名，便于定位）
 	template <class Engine>
-		requires requires(Engine& e) { e.jump(); }
+		requires detail::StreamEngine<Engine>
 	[[nodiscard]]
 	inline constexpr Engine MakeStreamEngine(std::uint64_t streamId, std::uint64_t seed = DefaultSeed)
 	{

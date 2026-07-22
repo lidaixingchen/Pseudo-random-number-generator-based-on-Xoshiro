@@ -184,6 +184,51 @@ TEST_SUITE("引擎基础设施")
 }
 
 // ============================================================================
+// 引擎概念约束（v1.4 C2：JumpableEngine / StreamEngine 形式化）
+// 全部为编译期 static_assert，编译通过即测试通过，无运行时开销
+// ============================================================================
+TEST_SUITE("引擎概念约束 (v1.4 C2)")
+{
+    TEST_CASE("JumpableEngine 概念约束")
+    {
+        // 满足 JumpableEngine：仅 3 个 xoshiro 系列有 jump()
+        static_assert(RandX::detail::JumpableEngine<RandX::Xoshiro256StarStar>);
+        static_assert(RandX::detail::JumpableEngine<RandX::Xoroshiro128StarStar>);
+        static_assert(RandX::detail::JumpableEngine<RandX::Xoshiro128StarStar>);
+
+        // 不满足 JumpableEngine：无 jump() 方法
+        static_assert(!RandX::detail::JumpableEngine<RandX::SplitMix64>);
+        static_assert(!RandX::detail::JumpableEngine<RandX::SFC64>);
+        static_assert(!RandX::detail::JumpableEngine<RandX::RomuDuoJr>);
+        static_assert(!RandX::detail::JumpableEngine<RandX::Xoroshiro64StarStar>);
+        static_assert(!RandX::detail::JumpableEngine<RandX::ChaCha20>);
+    }
+
+    TEST_CASE("StreamEngine 概念约束")
+    {
+        // 满足 StreamEngine：当前等价于 JumpableEngine
+        static_assert(RandX::detail::StreamEngine<RandX::Xoshiro256StarStar>);
+        static_assert(RandX::detail::StreamEngine<RandX::Xoroshiro128StarStar>);
+        static_assert(RandX::detail::StreamEngine<RandX::Xoshiro128StarStar>);
+
+        // 不满足 StreamEngine
+        static_assert(!RandX::detail::StreamEngine<RandX::SplitMix64>);
+        static_assert(!RandX::detail::StreamEngine<RandX::SFC64>);
+        static_assert(!RandX::detail::StreamEngine<RandX::RomuDuoJr>);
+        static_assert(!RandX::detail::StreamEngine<RandX::Xoroshiro64StarStar>);
+        static_assert(!RandX::detail::StreamEngine<RandX::ChaCha20>);
+    }
+
+    TEST_CASE("SerializableEngine 概念不受影响")
+    {
+        // 已有概念不受 v1.4 新增概念影响
+        static_assert(RandX::detail::SerializableEngine<RandX::Xoshiro256StarStar>);
+        static_assert(!RandX::detail::SerializableEngine<RandX::SplitMix64>);  // state_type = uint64_t 标量
+        static_assert(!RandX::detail::SerializableEngine<RandX::ChaCha20>);    // CSPRNG 不导出状态
+    }
+}
+
+// ============================================================================
 // 编译期 API（C++23 专属；RandIntCE 依赖 __uint128_t,MSVC 跳过）
 // ============================================================================
 TEST_SUITE("编译期 API")
