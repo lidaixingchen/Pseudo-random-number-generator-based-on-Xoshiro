@@ -104,6 +104,27 @@ int main()
 
 更多示例见 [examples/](examples/) 目录（引擎管理、编译期随机、多流并行、ChaCha20、按权重选取）。
 
+## API 速查
+
+| 分类 | 函数 | 说明 |
+|------|------|------|
+| 基础生成 | `RandInt(min, max)` | [min, max] 闭区间整数 |
+| | `RandReal(min, max)` | [min, max) 浮点数 |
+| | `RandBool(p)` | 概率 p 为 true |
+| | `RandChar(min, max)` / `RandChar(CharSet)` | 随机字符 / 预设字符集 |
+| | `RandBits<N>()` | N 位随机整数 |
+| 分布 | `RandNormal` `RandExp` `RandPoisson` `RandGamma` `RandBeta` `RandBinomial` `RandBernoulli` `RandLogNormal` `RandGeometric` `RandCauchy` `RandWeibull` `RandExtremeValue` `RandChiSquared` `RandStudentT` `RandFisherF` `RandWeighted` | 16 种标准统计分布 |
+| 容器 | `RandElement` / `RandSample` / `RandShuffle` / `RandPermutation` / `RandFill` / `RandVector` | 容器版 + 迭代器版 |
+| ranges | `ranges::RandElement` / `RandSample` / `RandShuffle` / `RandFill` | 仅 C++23 |
+| 字符串 | `RandString(len, charset)` / `RandUUID()` | 随机字符串 / UUID v4 |
+| 编译期 | `RandIntCE<Seed>(min, max)` / `ShuffleCE` / `ShuffledArray` | 仅 C++23 |
+| 序列化 | `serialize()` / `deserialize()` / `operator<<` / `operator>>` | 状态持久化 |
+| CSPRNG | `ChaCha20()` / `reseed()` / `SecureRandomBytes()` / `SecureSeed()` / `IsOsCryptoEntropyAvailable()` | 密码学安全 |
+| 引擎控制 | `jump()` / `longJump()` / `discard(n)` / `MakeStreamEngine` / `Reseed(seed)` / `RandomSeed()` | 并行与播种 |
+
+> CharSet 枚举：`Alphanumeric` / `Alpha` / `Lower` / `Upper` / `Digit` / `Hex` / `Printable` / `Base64` / `Base64UrlSafe`。
+> 所有函数默认使用线程局部 `Xoshiro256StarStar`，也支持传入自定义引擎：`RandInt(rng, min, max)`。
+
 ## 安全选型
 
 | 场景 | 推荐 | 理由 |
