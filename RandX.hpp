@@ -146,6 +146,7 @@ namespace RandX
 
 	/// @defgroup engines 引擎
 	/// @brief 8 个伪随机数生成引擎（7 非 CSPRNG + 1 ChaCha20 CSPRNG）
+	/// @{
 
 	/// @brief SplitMix64 伪随机数生成器，64 位输出，周期 2^64。
 	///
@@ -922,22 +923,29 @@ namespace RandX
 		requires IndexableState<typename E::state_type>;
 	};
 
-	// 可跳跃引擎概念：支持 jump() 前进 2^N 步
-	// 满足此概念的引擎可通过 jump() 创建并行不重叠子序列
-	// 当前满足：Xoshiro256StarStar, Xoroshiro128StarStar, Xoshiro128StarStar
-	// 不满足：SplitMix64, SFC64, RomuDuoJr, Xoroshiro64StarStar, ChaCha20
-	// 注意：ChaCha20 不提供 jump（CSPRNG 安全约束，状态导出违背前向安全模型）
+	/// @brief 可跳跃引擎概念：支持 jump() 前进 2^N 步
+	///
+	/// @details 满足此概念的引擎可通过 jump() 创建并行不重叠子序列。
+	/// 当前满足：Xoshiro256StarStar, Xoroshiro128StarStar, Xoshiro128StarStar。
+	/// 不满足：SplitMix64, SFC64, RomuDuoJr, Xoroshiro64StarStar, ChaCha20。
+	///
+	/// @note ChaCha20 不提供 jump（CSPRNG 安全约束，状态导出违背前向安全模型）。
+	/// @sa StreamEngine, MakeStreamEngine
 	template <class E>
 	concept JumpableEngine = requires(E& e) {
 		{ e.jump() } -> std::same_as<void>;
 	};
 
-	// 流式引擎概念：可通过 MakeStreamEngine 创建互不重叠的子序列流
-	// 当前约束与 JumpableEngine 完全相同，仅为语义区分与 Philox 预留
-	// JumpableEngine 描述能力（能 jump），StreamEngine 描述用途（能创建流）
-	// 未来 counter-based 引擎（如 Philox）可通过 counter 偏移创建流，
-	// 届时此概念可扩展为 JumpableEngine<E> || CounterBasedEngine<E>
-	// 注意：当前不要假设两者约束不同，等 Philox 落地时再引入 CounterBasedEngine
+	/// @brief 流式引擎概念：可通过 MakeStreamEngine 创建互不重叠的子序列流
+	///
+	/// @details 当前等价于 JumpableEngine（jump-based 流）。
+	/// JumpableEngine 描述能力（能 jump），StreamEngine 描述用途（能创建流）。
+	/// 未来 counter-based 引擎（如 Philox）可通过 counter 偏移创建流，
+	/// 届时此概念可扩展为 JumpableEngine<E> || CounterBasedEngine<E>。
+	///
+	/// @warning 当前约束与 JumpableEngine 完全相同，仅为语义区分与 Philox 预留。
+	///          不要假设两者约束不同，等 Philox 落地时再引入 CounterBasedEngine。
+	/// @sa MakeStreamEngine, JumpableEngine
 	template <class E>
 	concept StreamEngine = JumpableEngine<E>;
 
@@ -1664,8 +1672,11 @@ namespace RandX
 		}
 	}
 
+	/// @}
+
 	/// @defgroup csprng 密码学安全
 	/// @brief ChaCha20 CSPRNG 与 OS 熵源 API
+	/// @{
 
 	/// @brief 用 OS 密码学熵源填充 [buf, buf+n) 字节
 	/// @param buf 目标缓冲区指针
@@ -1881,8 +1892,11 @@ namespace RandX
 		DefaultEngine() = Xoshiro256StarStar{ RandomSeed() };
 	}
 
+	/// @}
+
 	/// @defgroup basic 基础生成
 	/// @brief RandInt / RandReal / RandBool / RandChar / RandBits
+	/// @{
 
 	/// @brief 生成 [min, max] 范围内的随机整数
 	/// @param min 下界（含）
@@ -2010,8 +2024,11 @@ namespace RandX
 		return RandChar<CharT>(engine, CharT{}, max);
 	}
 
+	/// @}
+
 	/// @defgroup containers 容器操作
 	/// @brief RandElement / RandSample / RandShuffle / RandPermutation / RandFill / RandVector
+	/// @{
 
 	/// @brief 从容器中随机取一个元素
 	/// @param c 源容器（需支持 operator[] 和 size()）
@@ -2104,8 +2121,11 @@ namespace RandX
 	}
 
 
+	/// @}
+
 	/// @defgroup distributions 统计分布
 	/// @brief 16 种标准统计分布便捷函数
+	/// @{
 
 	/// @brief 生成正态分布随机数
 	/// @param mean 均值（默认 0）
@@ -2645,8 +2665,11 @@ namespace RandX
 		return perm;
 	}
 
+	/// @}
+
 	/// @defgroup strings 字符串与 ID
 	/// @brief RandString / RandUUID
+	/// @{
 
 	/// @brief 生成指定长度的随机字符串
 	/// @param length 字符串长度
@@ -3144,6 +3167,8 @@ namespace RandX
 		return arr;
 	}
 
+	/// @}
+
 	////////////////////////////////////////////////////////////////
 	//
 	//	静态断言：确认引擎满足 uniform_random_bit_generator 概念
@@ -3158,16 +3183,10 @@ namespace RandX
 	static_assert(std::uniform_random_bit_generator<RomuDuoJr>);
 	static_assert(std::uniform_random_bit_generator<ChaCha20>);
 
-	////////////////////////////////////////////////////////////////
-	//
-	//	ranges 风格 API（C++23 专属）
-	//
-	//	接受整个 range 对象而非迭代器对，与 STL ranges 算法
-	//	（std::views::filter / std::views::transform）无缝组合。
-	//	通过命名空间隔离避免与容器版重载歧义：
-	//	  RandX::RandElement(v)         —— 容器版
-	//	  RandX::ranges::RandElement(v) —— ranges 版
-	//
+	/// @defgroup ranges Ranges 风格 API
+	/// @brief 接受整个 range 对象而非迭代器对，与 STL ranges 算法无缝组合（C++23 专属）
+	/// @{
+
 	namespace ranges
 	{
 		/// @brief 随机选取一个元素（返回值拷贝，非迭代器）
@@ -3217,5 +3236,7 @@ namespace RandX
 			RandX::RandFill(std::ranges::begin(r), std::ranges::end(r), min, max);
 		}
 	}
+
+	/// @}
 
 }
