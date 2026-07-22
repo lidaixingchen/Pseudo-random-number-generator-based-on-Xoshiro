@@ -59,10 +59,10 @@ jobs:
       - name: Verify headers installed
         shell: pwsh
         run: |
-          $inc = "vcpkg_installed/x64-windows/include"
+          $inc = "$env:VCPKG_ROOT/installed/x64-windows/include"
           foreach ($h in @("RandX.hpp", "RandX_Cpp17.hpp")) {
             if (-not (Test-Path "$inc/$h")) {
-              Write-Error "Header not installed: $h"
+              Write-Error "Header not installed: $h (looked in $inc)"
               exit 1
             }
             Write-Host "OK: $h installed"
