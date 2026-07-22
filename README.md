@@ -23,6 +23,14 @@
 > 如果你的编译器支持 C++23，推荐使用 `RandX.hpp`；否则使用 `RandX_Cpp17.hpp`。
 > 两者算法实现完全一致，输出序列相同（相同种子下），便捷 API 签名一致。
 
+## API 参考文档
+
+完整的 Doxygen API 参考文档（含引擎类、便捷函数、概念约束）托管在 GitHub Pages：
+
+**https://lidaixingchen.github.io/Pseudo-random-number-generator-based-on-Xoshiro/**
+
+本地生成：`doxygen Doxyfile`，输出到 `docs/api/html/`。
+
 ## 特性
 
 - 满足 `std::uniform_random_bit_generator` 概念（RandX.hpp 含 `static_assert` 编译期验证）
@@ -309,13 +317,27 @@ int main()
 
 ## 基准测试
 
-编译并运行 benchmark.cpp：
+### 零依赖快速检查
+
+编译并运行 benchmark.cpp（无需 CMake / 网络）：
 
 ```bash
 g++ -std=c++23 -O2 benchmark.cpp -o benchmark && ./benchmark
 ```
 
 输出各引擎的吞吐量（Mops/s、MB/s）、jump 开销和 RandInt API 性能。
+
+### 结构化基准套件（Google Benchmark）
+
+覆盖 7 引擎 × 3 操作 + ChaCha20 专用基准 + 8 分布 + RandSample 交叉点扫描 + jump + SecureRandomBytes，支持 JSON 输出与 CI 性能回归对比：
+
+```bash
+cmake -B build -DRANDX_BUILD_BENCHMARK=ON
+cmake --build build --target benchmark_gbench
+./build/benchmark_gbench --benchmark_format=json --benchmark_repetitions=5
+```
+
+性能回归由 `.github/workflows/benchmark.yml` 自动追踪（仅 master 分支上传基线，PR 仅对比）。
 
 ## CMake 集成
 
