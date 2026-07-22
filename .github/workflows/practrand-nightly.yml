@@ -32,6 +32,10 @@ on:
 permissions:
   issues: write
 
+concurrency:
+  group: practrand-nightly
+  cancel-in-progress: false
+
 jobs:
   practrand:
     runs-on: ubuntu-24.04
@@ -67,11 +71,25 @@ jobs:
         with:
           script: |
             const date = new Date().toISOString().slice(0, 10);
+            const titlePrefix = '[PractRand Nightly 失败]';
+            // 查重：已有未关闭的同类 issue 则跳过
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'nightly',
+              per_page: 20
+            });
+            const dup = issues.find(i => i.title.startsWith(titlePrefix));
+            if (dup) {
+              core.info(`已有未关闭 issue #${dup.number}，跳过创建`);
+              return;
+            }
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
             await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: `[PractRand Nightly 失败] ${date} 统计质量回归`,
+              title: `${titlePrefix} ${date} 统计质量回归`,
               body: [
                 `PractRand nightly 验证失败，详见 [workflow run](${runUrl})。`,
                 '',

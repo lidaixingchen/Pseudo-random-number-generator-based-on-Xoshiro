@@ -3,8 +3,30 @@ name: CI
 on:
   push:
     branches: [master]
+    paths:
+      - 'RandX.hpp'
+      - 'RandX_Cpp17.hpp'
+      - 'test_randx.cpp'
+      - 'test_randx_cpp17.cpp'
+      - 'benchmark.cpp'
+      - 'CMakeLists.txt'
+      - 'third_party/**'
+      - '.github/workflows/ci.yml'
   pull_request:
     branches: [master]
+    paths:
+      - 'RandX.hpp'
+      - 'RandX_Cpp17.hpp'
+      - 'test_randx.cpp'
+      - 'test_randx_cpp17.cpp'
+      - 'benchmark.cpp'
+      - 'CMakeLists.txt'
+      - 'third_party/**'
+      - '.github/workflows/ci.yml'
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   gcc:
