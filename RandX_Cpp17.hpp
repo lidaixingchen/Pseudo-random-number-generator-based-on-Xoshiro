@@ -87,11 +87,14 @@
 # include <unordered_set>
 # include <vector>
 # include <stdexcept>
+# include <ios>       // std::ios_base::failbit（operator>> 所需）
+# include <istream>   // std::basic_istream（operator>> 所需完整类型）
+# include <ostream>   // std::basic_ostream（operator<< 所需完整类型）
 # if defined(_MSC_VER) && (defined(__x86_64__) || defined(_M_X64))
 #	include <immintrin.h>
 # endif
 // ── A3 跨平台 OS 熵源头文件（条件包含） ──
-# if __has_include(<bcrypt.h>)
+# if defined(_WIN32) && __has_include(<bcrypt.h>)
 // bcrypt.h 依赖 <windows.h> 提供的 ULONG/NTSTATUS 等类型（MSVC 和 MinGW 均需）
 // NOMINMAX 阻止 <windows.h> 定义 min/max 宏（与引擎的 min()/max() 方法冲突）
 #	ifndef WIN32_LEAN_AND_MEAN
@@ -103,10 +106,10 @@
 #	include <windows.h>
 #	include <bcrypt.h>
 #	pragma comment(lib, "bcrypt.lib")
-# elif __has_include(<sys/random.h>)
+# elif defined(__linux__) && __has_include(<sys/random.h>)
 #	include <sys/random.h>
 #	include <cerrno>
-# elif __has_include(<Security/Security.h>)
+# elif defined(__APPLE__) && __has_include(<Security/Security.h>)
 #	include <Security/Security.h>
 # endif
 # include <chrono>   // std::chrono（RandomSeed 时间戳兜底用）
@@ -874,13 +877,13 @@ namespace RandX
 			if (n == 0) return true;
 			auto* p = static_cast<std::uint8_t*>(buf);
 
-#	if __has_include(<bcrypt.h>)
+#	if defined(_WIN32) && __has_include(<bcrypt.h>)
 			// Windows: BCryptGenRandom（一次调用填满）
 			// NTSTATUS >= 0 即 NT_SUCCESS（不能 == 0，正向 informational code 也属成功）
 			return (::BCryptGenRandom(nullptr, p, static_cast<ULONG>(n),
 			                          BCRYPT_USE_SYSTEM_PREFERRED_RNG) >= 0);
 
-#	elif __has_include(<sys/random.h>)
+#	elif defined(__linux__) && __has_include(<sys/random.h>)
 			// Linux: getrandom（循环处理短读与 EINTR）
 			std::size_t filled = 0;
 			while (filled < n)
@@ -896,7 +899,7 @@ namespace RandX
 			}
 			return true;
 
-#	elif __has_include(<Security/Security.h>)
+#	elif defined(__APPLE__) && __has_include(<Security/Security.h>)
 			// macOS: SecRandomCopyBytes（一次调用填满）
 			return (::SecRandomCopyBytes(kSecRandomDefault, n, p) == errSecSuccess);
 
@@ -927,7 +930,7 @@ namespace RandX
 		[[nodiscard]]
 		inline bool HasCryptoGradeOsEntropy() noexcept
 		{
-#	if __has_include(<bcrypt.h>) || __has_include(<sys/random.h>) || __has_include(<Security/Security.h>)
+#	if (defined(_WIN32) && __has_include(<bcrypt.h>)) || (defined(__linux__) && __has_include(<sys/random.h>)) || (defined(__APPLE__) && __has_include(<Security/Security.h>))
 			return true;
 #	else
 			return false;
@@ -1749,8 +1752,10 @@ namespace RandX
 	inline void SecureRandomBytes(void* buf, std::size_t n)
 	{
 		if (n == 0) return;
+		if (!detail::HasCryptoGradeOsEntropy())
+			throw std::runtime_error("SecureRandomBytes: no OS cryptographic entropy source available");
 		if (!detail::GetOsEntropyBytes(buf, n))
-			throw std::runtime_error("SecureRandomBytes: OS entropy source unavailable");
+			throw std::runtime_error("SecureRandomBytes: OS entropy source failed");
 	}
 
 	/// @brief 生成密码学安全的 64 位随机种子
@@ -1966,6 +1971,7 @@ namespace RandX
 	[[nodiscard]]
 	inline T RandInt(T min, T max)
 	{
+		assert(min <= max);
 		std::uniform_int_distribution<T> dist(min, max);
 		return dist(DefaultEngine());
 	}
@@ -1977,6 +1983,7 @@ namespace RandX
 	[[nodiscard]]
 	inline T RandInt(T max)
 	{
+		assert(max >= T{0});
 		return RandInt<T>(T{0}, max);
 	}
 
@@ -2019,6 +2026,7 @@ namespace RandX
 	[[nodiscard]]
 	inline bool RandBernoulli(double p = 0.5)
 	{
+		assert(p >= 0.0 && p <= 1.0);
 		return RandBool(p);
 	}
 
@@ -2030,6 +2038,7 @@ namespace RandX
 	[[nodiscard]]
 	inline bool RandBernoulli(Engine& engine, double p = 0.5)
 	{
+		assert(p >= 0.0 && p <= 1.0);
 		return RandBool(engine, p);
 	}
 
@@ -2285,6 +2294,7 @@ namespace RandX
 	[[nodiscard]]
 	inline T RandNormal(T mean = T{0}, T stddev = T{1})
 	{
+		assert(stddev > T{0});
 		std::normal_distribution<T> dist(mean, stddev);
 		return dist(DefaultEngine());
 	}
@@ -2426,6 +2436,7 @@ namespace RandX
 	[[nodiscard]]
 	inline typename WeightContainer::size_type RandWeighted(const WeightContainer& weights)
 	{
+		assert(!weights.empty() && std::all_of(weights.begin(), weights.end(), [](auto w) { return w >= 0; }));
 		using Size = typename WeightContainer::size_type;
 		std::discrete_distribution<Size> dist(weights.begin(), weights.end());
 		return dist(DefaultEngine());
@@ -2440,6 +2451,7 @@ namespace RandX
 	[[nodiscard]]
 	inline T RandInt(Engine& engine, T min, T max)
 	{
+		assert(min <= max);
 		std::uniform_int_distribution<T> dist(min, max);
 		return dist(engine);
 	}
@@ -2753,6 +2765,7 @@ namespace RandX
 	[[nodiscard]]
 	inline T RandExp(T lambda = T{1})
 	{
+		assert(lambda > T{0});
 		std::exponential_distribution<T> dist(lambda);
 		return dist(DefaultEngine());
 	}
@@ -2764,6 +2777,7 @@ namespace RandX
 	[[nodiscard]]
 	inline T RandPoisson(double mean = 1.0)
 	{
+		assert(mean > 0.0);
 		std::poisson_distribution<T> dist(mean);
 		return dist(DefaultEngine());
 	}
@@ -2776,6 +2790,7 @@ namespace RandX
 	[[nodiscard]]
 	inline T RandGamma(T alpha = T{1}, T beta = T{1})
 	{
+		assert(alpha > T{0} && beta > T{0});
 		std::gamma_distribution<T> dist(alpha, beta);
 		return dist(DefaultEngine());
 	}
@@ -2788,6 +2803,7 @@ namespace RandX
 	[[nodiscard]]
 	inline T RandBinomial(T t = 1, double p = 0.5)
 	{
+		assert(t >= 0 && p >= 0.0 && p <= 1.0);
 		std::binomial_distribution<T> dist(t, p);
 		return dist(DefaultEngine());
 	}
@@ -2801,6 +2817,7 @@ namespace RandX
 	[[nodiscard]]
 	inline T RandBinomial(Engine& engine, T t = 1, double p = 0.5)
 	{
+		assert(t >= 0 && p >= 0.0 && p <= 1.0);
 		std::binomial_distribution<T> dist(t, p);
 		return dist(engine);
 	}
@@ -2813,6 +2830,7 @@ namespace RandX
 	[[nodiscard]]
 	inline T RandLogNormal(T mean = T{0}, T stddev = T{1})
 	{
+		assert(stddev > T{0});
 		std::lognormal_distribution<T> dist(mean, stddev);
 		return dist(DefaultEngine());
 	}
@@ -2826,6 +2844,7 @@ namespace RandX
 	[[nodiscard]]
 	inline T RandLogNormal(Engine& engine, T mean = T{0}, T stddev = T{1})
 	{
+		assert(stddev > T{0});
 		std::lognormal_distribution<T> dist(mean, stddev);
 		return dist(engine);
 	}
@@ -2837,6 +2856,7 @@ namespace RandX
 	[[nodiscard]]
 	inline T RandGeometric(double p = 0.5)
 	{
+		assert(p > 0.0 && p <= 1.0);
 		std::geometric_distribution<T> dist(p);
 		return dist(DefaultEngine());
 	}
@@ -2849,6 +2869,7 @@ namespace RandX
 	[[nodiscard]]
 	inline T RandGeometric(Engine& engine, double p = 0.5)
 	{
+		assert(p > 0.0 && p <= 1.0);
 		std::geometric_distribution<T> dist(p);
 		return dist(engine);
 	}
@@ -2861,6 +2882,7 @@ namespace RandX
 	[[nodiscard]]
 	inline T RandCauchy(T a = T{0}, T b = T{1})
 	{
+		assert(b > T{0});
 		std::cauchy_distribution<T> dist(a, b);
 		return dist(DefaultEngine());
 	}
@@ -2874,6 +2896,7 @@ namespace RandX
 	[[nodiscard]]
 	inline T RandCauchy(Engine& engine, T a = T{0}, T b = T{1})
 	{
+		assert(b > T{0});
 		std::cauchy_distribution<T> dist(a, b);
 		return dist(engine);
 	}
@@ -2886,6 +2909,7 @@ namespace RandX
 	[[nodiscard]]
 	inline T RandWeibull(T a = T{1}, T b = T{1})
 	{
+		assert(a > T{0} && b > T{0});
 		std::weibull_distribution<T> dist(a, b);
 		return dist(DefaultEngine());
 	}
@@ -2899,6 +2923,7 @@ namespace RandX
 	[[nodiscard]]
 	inline T RandWeibull(Engine& engine, T a = T{1}, T b = T{1})
 	{
+		assert(a > T{0} && b > T{0});
 		std::weibull_distribution<T> dist(a, b);
 		return dist(engine);
 	}
@@ -2911,6 +2936,7 @@ namespace RandX
 	[[nodiscard]]
 	inline T RandExtremeValue(T a = T{0}, T b = T{1})
 	{
+		assert(b > T{0});
 		std::extreme_value_distribution<T> dist(a, b);
 		return dist(DefaultEngine());
 	}
@@ -2924,6 +2950,7 @@ namespace RandX
 	[[nodiscard]]
 	inline T RandExtremeValue(Engine& engine, T a = T{0}, T b = T{1})
 	{
+		assert(b > T{0});
 		std::extreme_value_distribution<T> dist(a, b);
 		return dist(engine);
 	}
@@ -2935,6 +2962,7 @@ namespace RandX
 	[[nodiscard]]
 	inline T RandChiSquared(T n = T{1})
 	{
+		assert(n > T{0});
 		std::chi_squared_distribution<T> dist(n);
 		return dist(DefaultEngine());
 	}
@@ -2947,6 +2975,7 @@ namespace RandX
 	[[nodiscard]]
 	inline T RandChiSquared(Engine& engine, T n = T{1})
 	{
+		assert(n > T{0});
 		std::chi_squared_distribution<T> dist(n);
 		return dist(engine);
 	}
@@ -2958,6 +2987,7 @@ namespace RandX
 	[[nodiscard]]
 	inline T RandStudentT(T n = T{1})
 	{
+		assert(n > T{0});
 		std::student_t_distribution<T> dist(n);
 		return dist(DefaultEngine());
 	}
@@ -2970,6 +3000,7 @@ namespace RandX
 	[[nodiscard]]
 	inline T RandStudentT(Engine& engine, T n = T{1})
 	{
+		assert(n > T{0});
 		std::student_t_distribution<T> dist(n);
 		return dist(engine);
 	}
@@ -2982,6 +3013,7 @@ namespace RandX
 	[[nodiscard]]
 	inline T RandFisherF(T m = T{1}, T n = T{1})
 	{
+		assert(m > T{0} && n > T{0});
 		std::fisher_f_distribution<T> dist(m, n);
 		return dist(DefaultEngine());
 	}
@@ -2995,6 +3027,7 @@ namespace RandX
 	[[nodiscard]]
 	inline T RandFisherF(Engine& engine, T m = T{1}, T n = T{1})
 	{
+		assert(m > T{0} && n > T{0});
 		std::fisher_f_distribution<T> dist(m, n);
 		return dist(engine);
 	}
@@ -3008,6 +3041,7 @@ namespace RandX
 	[[nodiscard]]
 	inline T RandBeta(T a = T{1}, T b = T{1})
 	{
+		assert(a > T{0} && b > T{0});
 		std::gamma_distribution<T> distA(a, T{1});
 		std::gamma_distribution<T> distB(b, T{1});
 		auto& rng = DefaultEngine();
@@ -3029,6 +3063,7 @@ namespace RandX
 	[[nodiscard]]
 	inline T RandBeta(Engine& engine, T a = T{1}, T b = T{1})
 	{
+		assert(a > T{0} && b > T{0});
 		std::gamma_distribution<T> distA(a, T{1});
 		std::gamma_distribution<T> distB(b, T{1});
 		const T x = distA(engine);
