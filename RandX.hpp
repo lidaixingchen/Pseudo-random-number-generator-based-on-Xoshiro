@@ -2166,6 +2166,20 @@ namespace RandX
 		return dist(DefaultEngine());
 	}
 
+	/// @brief 生成正态分布随机数（指定引擎重载）
+	/// @param engine 自定义随机数引擎
+	/// @param mean 均值（默认 0）
+	/// @param stddev 标准差（默认 1）
+	/// @return 服从 N(mean, stddev) 的随机数
+	template <class Engine, std::floating_point T = double>
+	[[nodiscard]]
+	inline T RandNormal(Engine& engine, T mean = T{0}, T stddev = T{1})
+	{
+		assert(stddev > T{0});
+		std::normal_distribution<T> dist(mean, stddev);
+		return dist(engine);
+	}
+
 	/// @brief 随机打乱容器
 	/// @param c 待打乱的容器
 	template <class Container>
@@ -2762,6 +2776,19 @@ namespace RandX
 		return dist(DefaultEngine());
 	}
 
+	/// @brief 生成指数分布随机数（指定引擎重载）
+	/// @param engine 自定义随机数引擎
+	/// @param lambda 速率参数（默认 1，均值 = 1/lambda）
+	/// @return 服从 Exp(lambda) 的随机数
+	template <class Engine, std::floating_point T = double>
+	[[nodiscard]]
+	inline T RandExp(Engine& engine, T lambda = T{1})
+	{
+		assert(lambda > T{0});
+		std::exponential_distribution<T> dist(lambda);
+		return dist(engine);
+	}
+
 	/// @brief 生成泊松分布随机数
 	/// @param mean 均值参数（默认 1.0）
 	/// @return 服从 Poisson(mean) 的随机整数
@@ -2772,6 +2799,19 @@ namespace RandX
 		assert(mean > 0.0);
 		std::poisson_distribution<T> dist(mean);
 		return dist(DefaultEngine());
+	}
+
+	/// @brief 生成泊松分布随机数（指定引擎重载）
+	/// @param engine 自定义随机数引擎
+	/// @param mean 均值参数（默认 1.0）
+	/// @return 服从 Poisson(mean) 的随机整数
+	template <class Engine, std::integral T = int>
+	[[nodiscard]]
+	inline T RandPoisson(Engine& engine, double mean = 1.0)
+	{
+		assert(mean > 0.0);
+		std::poisson_distribution<T> dist(mean);
+		return dist(engine);
 	}
 
 	/// @brief 生成伽马分布随机数
@@ -2785,6 +2825,20 @@ namespace RandX
 		assert(alpha > T{0} && beta > T{0});
 		std::gamma_distribution<T> dist(alpha, beta);
 		return dist(DefaultEngine());
+	}
+
+	/// @brief 生成伽马分布随机数（指定引擎重载）
+	/// @param engine 自定义随机数引擎
+	/// @param alpha 形状参数（默认 1）
+	/// @param beta 尺度参数（默认 1）
+	/// @return 服从 Gamma(alpha, beta) 的随机数
+	template <class Engine, std::floating_point T = double>
+	[[nodiscard]]
+	inline T RandGamma(Engine& engine, T alpha = T{1}, T beta = T{1})
+	{
+		assert(alpha > T{0} && beta > T{0});
+		std::gamma_distribution<T> dist(alpha, beta);
+		return dist(engine);
 	}
 
 	/// @brief 生成二项分布随机数
