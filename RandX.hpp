@@ -764,6 +764,13 @@ namespace RandX
 			return (x << s) | (x >> (32 - s));
 		}
 
+		// 安全擦除内存（volatile 防止编译器死存储消除）
+		static void SecureWipe(void* ptr, std::size_t len) noexcept
+		{
+			volatile auto* p = static_cast<volatile std::uint8_t*>(ptr);
+			while (len--) *p++ = 0;
+		}
+
 		// 检测状态数组是否全零（全零是 xoshiro/xoroshiro 的吸收态）
 		template <std::size_t N>
 		[[nodiscard]]
@@ -1068,7 +1075,10 @@ namespace RandX
 	//	xoshiro256**
 	//
 	inline constexpr Xoshiro256StarStar::Xoshiro256StarStar(const std::uint64_t seed) noexcept
-		: m_state(SplitMix64{ seed }.generateSeedSequence<4>()) {}
+		: m_state(SplitMix64{ seed }.generateSeedSequence<4>())
+	{
+		if (detail::IsAllZero(m_state)) m_state[0] = 1;
+	}
 
 	template <class SeedSeq>
 		requires (!std::same_as<std::remove_cvref_t<SeedSeq>, Xoshiro256StarStar>)
@@ -1191,7 +1201,10 @@ namespace RandX
 	//	xoroshiro128**
 	//
 	inline constexpr Xoroshiro128StarStar::Xoroshiro128StarStar(const std::uint64_t seed) noexcept
-		: m_state(SplitMix64{ seed }.generateSeedSequence<2>()) {}
+		: m_state(SplitMix64{ seed }.generateSeedSequence<2>())
+	{
+		if (detail::IsAllZero(m_state)) m_state[0] = 1;
+	}
 
 	template <class SeedSeq>
 		requires (!std::same_as<std::remove_cvref_t<SeedSeq>, Xoroshiro128StarStar>)
@@ -1308,6 +1321,7 @@ namespace RandX
 		{
 			state = static_cast<std::uint32_t>(splitmix());
 		}
+		if (detail::IsAllZero(m_state)) m_state[0] = 1;
 	}
 
 	template <class SeedSeq>
@@ -1438,6 +1452,7 @@ namespace RandX
 		{
 			state = static_cast<std::uint32_t>(splitmix());
 		}
+		if (detail::IsAllZero(m_state)) m_state[0] = 1;
 	}
 
 	template <class SeedSeq>
@@ -1860,6 +1875,8 @@ namespace RandX
 		m_state[8] = 0;            // counter 重置
 		m_bufferPos = 64;          // 强制下次 operator() 触发新 block
 		m_bytesSinceReseed = 0;
+		detail::SecureWipe(seed.data(), seed.size());   // 擦除栈上密钥材料
+		detail::SecureWipe(m_buffer.data(), m_buffer.size()); // 擦除旧 keystream
 	}
 
 	// 生成一个 64-bit 随机数（从缓存取 8 字节，缓存耗尽时生成新 block）
@@ -1943,6 +1960,7 @@ namespace RandX
 	[[nodiscard]]
 	inline bool RandBool(double p = 0.5)
 	{
+		assert(p >= 0.0 && p <= 1.0);
 		return RandReal<double>(0.0, 1.0) < p;
 	}
 
@@ -1954,6 +1972,7 @@ namespace RandX
 	[[nodiscard]]
 	inline bool RandBool(Engine& engine, double p = 0.5)
 	{
+		assert(p >= 0.0 && p <= 1.0);
 		std::uniform_real_distribution<double> dist(0.0, 1.0);
 		return dist(engine) < p;
 	}
@@ -3048,10 +3067,10 @@ namespace RandX
 	}
 
 	/// @brief 生成 N 位随机整数
-	/// @tparam N 位数（1-64）
+	/// @tparam N 位数（1-64，且不超过 T 的位宽）
 	/// @return 均匀分布于 [0, 2^N) 的随机整数
 	template <int N, std::integral T = std::uint64_t>
-		requires (N > 0 && N <= 64)
+		requires (N > 0 && N <= 64 && N <= std::numeric_limits<T>::digits)
 	[[nodiscard]]
 	inline T RandBits() noexcept
 	{
@@ -3064,6 +3083,8 @@ namespace RandX
 
 	/// @brief 生成随机 UUID v4 字符串
 	/// @return 格式为 xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx 的 UUID 字符串
+	/// @warning 使用默认 PRNG（非 CSPRNG），不适用于安全敏感标识符；
+	///          安全场景请改用 ChaCha20 引擎重载或 SecureRandomBytes
 	[[nodiscard]]
 	inline std::string RandUUID()
 	{

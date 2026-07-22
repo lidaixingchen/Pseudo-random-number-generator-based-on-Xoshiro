@@ -74,7 +74,7 @@ jobs:
     runs-on: windows-2025
     strategy:
       matrix:
-        std: [c++17, c++23]
+        std: [c++17, c++20, c++23]
     steps:
       - uses: actions/checkout@v4
       - uses: ilammy/msvc-dev-cmd@v1
@@ -90,6 +90,12 @@ jobs:
         shell: cmd
         run: |
           cl /std:c++17 /W4 /EHsc /O2 /I third_party /Fe:test_randx_cpp17.exe test_randx_cpp17.cpp
+          test_randx_cpp17.exe
+      - name: Build & Test (C++20 char8_t coverage)
+        if: matrix.std == 'c++20'
+        shell: cmd
+        run: |
+          cl /std:c++20 /W4 /EHsc /O2 /I third_party /Fe:test_randx_cpp17.exe test_randx_cpp17.cpp
           test_randx_cpp17.exe
 
   coverage:

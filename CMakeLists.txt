@@ -20,8 +20,8 @@ target_include_directories(RandX INTERFACE
 if(WIN32)
     target_link_libraries(RandX INTERFACE bcrypt)
 elseif(APPLE)
-    find_library(SECRET_LIBRARY Security REQUIRED)
-    target_link_libraries(RandX INTERFACE ${SECRET_LIBRARY})
+    find_library(SECURITY_LIBRARY Security REQUIRED)
+    target_link_libraries(RandX INTERFACE ${SECURITY_LIBRARY})
 endif()
 
 # 安装
