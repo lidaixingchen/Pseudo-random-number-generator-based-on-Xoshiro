@@ -125,6 +125,8 @@ int main()
 > CharSet 枚举：`Alphanumeric` / `Alpha` / `Lower` / `Upper` / `Digit` / `Hex` / `Printable` / `Base64` / `Base64UrlSafe`。
 > 所有函数默认使用线程局部 `Xoshiro256StarStar`，也支持传入自定义引擎：`RandInt(rng, min, max)`。
 
+完整签名与参数说明见 [docs/API.md](docs/API.md)。
+
 ## 安全选型
 
 | 场景 | 推荐 | 理由 |
