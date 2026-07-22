@@ -52,7 +52,7 @@
 - `RandomSeed()` 硬件种子（优先 RDRAND）、`std::seed_seq` 支持（所有 7 引擎）、`Reseed(seed)` 测试复现
 
 **工程化**
-- 纯头文件零依赖，CMake `find_package` / `FetchContent`，vcpkg / Conan 包管理器
+- 纯头文件零依赖，CMake `find_package` / `FetchContent`，vcpkg 包管理器
 - GitHub Actions CI：GCC 14 / Clang 18 / MSVC 三编译器矩阵；MSVC `RandIntCE` 条件编译兼容
 
 ## 引擎一览
