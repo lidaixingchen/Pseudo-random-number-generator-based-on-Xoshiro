@@ -111,8 +111,12 @@
 // ── A3 跨平台 OS 熵源头文件（条件包含） ──
 # if __has_include(<bcrypt.h>)
 // bcrypt.h 依赖 <windows.h> 提供的 ULONG/NTSTATUS 等类型（MSVC 和 MinGW 均需）
+// NOMINMAX 阻止 <windows.h> 定义 min/max 宏（与引擎的 min()/max() 方法冲突）
 #	ifndef WIN32_LEAN_AND_MEAN
 #		define WIN32_LEAN_AND_MEAN
+#	endif
+#	ifndef NOMINMAX
+#		define NOMINMAX
 #	endif
 #	include <windows.h>
 #	include <bcrypt.h>
