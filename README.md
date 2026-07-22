@@ -27,7 +27,7 @@
 
 完整的 Doxygen API 参考文档（含引擎类、便捷函数、概念约束）托管在 GitHub Pages：
 
-**https://lidaixingchen.github.io/Pseudo-random-number-generator-based-on-Xoshiro/**
+**https://lidaixingchen.github.io/RandX/**
 
 本地生成：`doxygen Doxyfile`，输出到 `docs/api/html/`。
 

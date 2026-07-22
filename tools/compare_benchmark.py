@@ -70,7 +70,7 @@ def main() -> None:
         base = baseline[name]
         base_ms = normalize_ms(base["cpu_time"], base["time_unit"])
         cur_ms = normalize_ms(cur["cpu_time"], cur["time_unit"])
-        change = (cur_ms - base_ms) / base_ms if base_ms > 0 else 0.0
+        change = (cur_ms - base_ms) / base_ms if base_ms > 0 else (0.0 if cur_ms == 0 else 1.0)
         status = "REGRESSION" if change > args.tolerance else "OK"
         if change > args.tolerance:
             regressions.append(name)
