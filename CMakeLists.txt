@@ -81,7 +81,22 @@ if(RANDX_BUILD_TESTS)
 endif()
 
 if(RANDX_BUILD_BENCHMARK)
+    # 零依赖快速检查（保留不变）
     add_executable(benchmark benchmark.cpp)
     target_compile_features(benchmark PRIVATE cxx_std_23)
     target_link_libraries(benchmark PRIVATE RandX)
+
+    # Google Benchmark 正式套件
+    include(FetchContent)
+    FetchContent_Declare(
+        benchmark_gbench_dep
+        GIT_REPOSITORY https://github.com/google/benchmark.git
+        GIT_TAG        v1.8.5
+    )
+    set(BENCHMARK_ENABLE_TESTING OFF CACHE INTERNAL "")
+    FetchContent_MakeAvailable(benchmark_gbench_dep)
+
+    add_executable(benchmark_gbench benchmark_gbench.cpp)
+    target_link_libraries(benchmark_gbench PRIVATE benchmark::benchmark RandX)
+    target_compile_features(benchmark_gbench PRIVATE cxx_std_23)
 endif()
