@@ -32,11 +32,25 @@ jobs:
             --benchmark_repetitions=5 \
             --benchmark_report_aggregates_only=true
 
+      - name: Find Baseline Run
+        id: baseline-run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # 查询 master 分支最近一次成功、且非当前 commit 的 Benchmark run，
+          # 其上传的 benchmark-baseline artifact 作为本次对比基线
+          RUN_ID=$(gh api "repos/${{ github.repository }}/actions/workflows/benchmark.yml/runs?branch=master&status=success&per_page=20" \
+            --jq '.workflow_runs[] | select(.head_sha != "${{ github.sha }}") | .id' | head -n 1)
+          echo "run-id=${RUN_ID:-}" >> "$GITHUB_OUTPUT"
+
       - name: Download Baseline
+        if: steps.baseline-run.outputs.run-id != ''
         uses: actions/download-artifact@v4
         with:
           name: benchmark-baseline
           path: baseline
+          run-id: ${{ steps.baseline-run.outputs.run-id }}
+          github-token: ${{ github.token }}
         continue-on-error: true
 
       - name: Compare with Baseline
