@@ -5,6 +5,9 @@ project(RandX VERSION 1.3.1 LANGUAGES CXX)
 add_library(RandX INTERFACE)
 add_library(RandX::RandX ALIAS RandX)
 
+# 向下游传播最低 C++ 标准要求（RandX_Cpp17.hpp 需 C++17；RandX.hpp 需 C++23）
+target_compile_features(RandX INTERFACE cxx_std_17)
+
 target_include_directories(RandX INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<INSTALL_INTERFACE:include>
@@ -40,6 +43,7 @@ configure_package_config_file(
 write_basic_package_version_file(
     ${CMAKE_CURRENT_BINARY_DIR}/RandXConfigVersion.cmake
     COMPATIBILITY SameMajorVersion
+    ARCH_INDEPENDENT
 )
 install(FILES
     ${CMAKE_CURRENT_BINARY_DIR}/RandXConfig.cmake
