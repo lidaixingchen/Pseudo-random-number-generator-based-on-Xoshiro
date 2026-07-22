@@ -82,9 +82,10 @@ endif()
 
 if(RANDX_BUILD_BENCHMARK)
     # 零依赖快速检查（保留不变）
-    add_executable(benchmark benchmark.cpp)
-    target_compile_features(benchmark PRIVATE cxx_std_23)
-    target_link_libraries(benchmark PRIVATE RandX)
+    # 目标名 benchmark_quick：避免与 Google Benchmark 的 benchmark 库目标冲突
+    add_executable(benchmark_quick benchmark.cpp)
+    target_compile_features(benchmark_quick PRIVATE cxx_std_23)
+    target_link_libraries(benchmark_quick PRIVATE RandX)
 
     # Google Benchmark 正式套件
     include(FetchContent)
