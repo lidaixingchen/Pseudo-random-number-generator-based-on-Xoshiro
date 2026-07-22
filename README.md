@@ -353,7 +353,7 @@ ctest --test-dir build
 
 ## 包管理器
 
-> **状态**：尚未发布到 vcpkg 官方 ports / xmake-repo。当前仅以 overlay / 本地仓库形式可用。本仓库已就绪 PR 模板与 CI 预演，待提交后即可被官方收录。提交进度详见 `packaging/` 目录与下方"发布流程"小节。
+> **状态**：尚未发布到 vcpkg 官方 ports / xmake-repo。当前仅以 overlay / 本地仓库形式可用。本仓库已就绪 PR 模板与 CI 预演，待提交后即可被官方收录。维护者发布流程详见 [RELEASING.md](RELEASING.md)。
 
 ### CMake FetchContent（零依赖推荐）
 
@@ -396,30 +396,9 @@ target("your_target")
     add_packages("randx")
 ```
 
-### 发布流程（维护者）
+### 发布流程
 
-> CI 工作流 [`packaging-validation.yml`](.github/workflows/packaging-validation.yml) 会在推送 `v*` 标签时自动验证 port 是否能正常构建；通过后仍需手动提交 PR——官方 registry 不接受 CI 自动推送。
-
-**首次发布到 vcpkg 官方 ports**：
-
-1. Fork [microsoft/vcpkg](https://github.com/microsoft/vcpkg)
-2. 复制本仓库 `ports/randx/` 到 fork 仓库的 `ports/randx/`
-3. 在 fork 中执行 `vcpkg x-add-version randx` 自动生成 `versions/r-/randx.json` 和更新 `versions/baseline.json`（参考 `packaging/vcpkg/versions/` 下的模板）
-4. 提交 PR，等待 vcpkg 维护者 review
-
-**首次发布到 xmake-repo**：
-
-1. Fork [xmake-io/xmake-repo](https://github.com/xmake-io/xmake-repo)
-2. 复制本仓库 `packaging/xmake-repo/packages/r/randx/` 到 fork 仓库的 `packages/r/randx/`
-3. 在 fork 中执行 `xrepo install randx` 本地验证
-4. 提交 PR，等待 xmake 维护者 review
-
-**后续版本发布**：
-
-1. 推送新版本 tag（如 `v1.4.0`），CI 会自动验证
-2. 更新 `vcpkg.json`、`ports/randx/vcpkg.json`、`CMakeLists.txt` 中的 `version` 字段
-3. 下载新版本 GitHub tarball 计算 SHA512（更新到 `ports/randx/portfile.cmake`）与 SHA256（更新到 `packaging/xmake-repo/packages/r/randx/xmake.lua` 的 `add_versions`）
-4. 重新执行上述 PR 流程，在 `versions/r-/randx.json` 中追加新版本记录
+维护者发布新版本到 vcpkg / xmake-repo 的完整流程见 [RELEASING.md](RELEASING.md)。
 
 ## 编译要求
 
