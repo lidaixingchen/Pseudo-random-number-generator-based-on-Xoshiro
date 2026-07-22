@@ -144,44 +144,70 @@ namespace RandX
 	[[nodiscard]]
 	inline constexpr double DoubleFromBits(Uint64 i) noexcept;
 
-	// SplitMix64
-	// 输出：64 位
-	// 周期：2^64
-	// 状态大小：8 字节
-	// 原始实现：http://prng.di.unimi.it/splitmix64.c
+	/// @defgroup engines 引擎
+	/// @brief 8 个伪随机数生成引擎（7 非 CSPRNG + 1 ChaCha20 CSPRNG）
+
+	/// @brief SplitMix64 伪随机数生成器，64 位输出，周期 2^64。
+	///
+	/// @details 状态 8 字节（1×uint64）。主要用于种子扩展与哈希，
+	/// 可将单个 64 位种子展开为高质量的状态序列。
+	/// 原始实现：http://prng.di.unimi.it/splitmix64.c
+	///
+	/// @note 非通用 PRNG，无 jump 方法。
+	/// @sa Xoshiro256StarStar, Xoroshiro128StarStar
 	class SplitMix64
 	{
 	public:
 
-		using state_type	= std::uint64_t;	
-		using result_type	= std::uint64_t;
-		
+		using state_type	= std::uint64_t;	///< 状态类型（1×uint64）
+		using result_type	= std::uint64_t;	///< 输出类型
+
+		/// @brief 以指定状态构造引擎
+		/// @param state 64 位初始状态值
 		[[nodiscard]]
 		explicit constexpr SplitMix64(state_type state = DefaultSeed) noexcept;
 
-		// 从 std::seed_seq 播种
+		/// @brief 从 std::seed_seq 播种
+		/// @param seq 种子序列对象
 		template <class SeedSeq>
 			requires (!std::same_as<std::remove_cvref_t<SeedSeq>, SplitMix64>)
 		[[nodiscard]]
 		explicit constexpr SplitMix64(SeedSeq& seq);
 
+		/// @brief 生成下一个 64 位随机数
+		/// @return [min(), max()] 区间内的伪随机数
 		constexpr result_type operator()() noexcept;
 
+		/// @brief 跳过 n 个输出
+		/// @param n 跳过次数
 		constexpr void discard(unsigned long long n) noexcept;
 
+		/// @brief 生成 N 个高质量的 64 位种子序列
+		/// @tparam N 生成的种子数量
+		/// @return 包含 N 个 uint64 的数组，可用于播种其他引擎
 		template <std::size_t N>
 		[[nodiscard]]
 		constexpr std::array<std::uint64_t, N> generateSeedSequence() noexcept;
 
+		/// @brief 输出范围下界
+		/// @return 0
 		[[nodiscard]]
 		static constexpr result_type min() noexcept;
 
+		/// @brief 输出范围上界
+		/// @return 2^64 - 1
 		[[nodiscard]]
 		static constexpr result_type max() noexcept;
 
+		/// @brief 序列化引擎状态
+		/// @return 当前状态值
+		/// @sa deserialize()
 		[[nodiscard]]
 		constexpr state_type serialize() const noexcept;
 
+		/// @brief 从状态恢复引擎
+		/// @param state serialize() 返回的状态
+		/// @sa serialize()
 		constexpr void deserialize(state_type state) noexcept;
 
 		friend auto operator <=>(const SplitMix64&, const SplitMix64&) = default;
@@ -191,53 +217,75 @@ namespace RandX
 		state_type m_state;
 	};
 
-	// xoshiro256**
-	// 输出：64 位
-	// 周期：2^256 - 1
-	// 状态大小：32 字节
-	// 原始实现：http://prng.di.unimi.it/xoshiro256starstar.c
-	// 版本：1.0
+	/// @brief Xoshiro256** 伪随机数生成器，64 位输出，周期 2^256-1。
+	///
+	/// @details 通用首选引擎，统计质量最优。状态 32 字节（4×uint64）。
+	/// 满足 `std::uniform_random_bit_generator` 概念。
+	/// 原始实现：http://prng.di.unimi.it/xoshiro256starstar.c（版本 1.0）
+	///
+	/// @note 非 CSPRNG，不可用于密码学场景。安全场景请使用 ChaCha20。
+	/// @sa Xoroshiro128StarStar, SFC64, ChaCha20
 	class Xoshiro256StarStar
 	{
 	public:
 
-		using state_type	= std::array<std::uint64_t, 4>;
-		using result_type	= std::uint64_t;
+		using state_type	= std::array<std::uint64_t, 4>;	///< 状态类型（4×uint64）
+		using result_type	= std::uint64_t;	///< 输出类型
 
+		/// @brief 以指定种子构造引擎
+		/// @param seed 64 位种子值
 		[[nodiscard]]
 		explicit constexpr Xoshiro256StarStar(std::uint64_t seed = DefaultSeed) noexcept;
 
-		// 从 std::seed_seq 播种
+		/// @brief 从 std::seed_seq 播种
+		/// @param seq 种子序列对象
 		template <class SeedSeq>
 			requires (!std::same_as<std::remove_cvref_t<SeedSeq>, Xoshiro256StarStar>)
 		[[nodiscard]]
 		explicit constexpr Xoshiro256StarStar(SeedSeq& seq);
 
+		/// @brief 从状态数组直接构造
+		/// @param state serialize() 返回的状态
 		[[nodiscard]]
 		explicit constexpr Xoshiro256StarStar(state_type state) noexcept;
 
+		/// @brief 生成下一个 64 位随机数
+		/// @return [min(), max()] 区间内的伪随机数
 		constexpr result_type operator()() noexcept;
 
+		/// @brief 跳过 n 个输出
+		/// @param n 跳过次数
 		constexpr void discard(unsigned long long n) noexcept;
 
-		// 跳跃函数。等价于调用 2^128 次 next()；
-		// 可用于生成 2^128 个不重叠的子序列，适用于并行计算。
+		/// @brief 前进 2^128 步，用于创建并行子序列
+		/// @note 等价于调用 2^128 次 operator()
+		/// @sa longJump(), MakeStreamEngine()
 		constexpr void jump() noexcept;
 
-		// 长跳跃函数。等价于调用 2^192 次 next()；
-		// 可用于生成 2^64 个起始点，每个起始点可通过 jump()
-		// 生成 2^64 个不重叠的子序列，适用于并行分布式计算。
+		/// @brief 前进 2^192 步，用于创建更稀疏的并行子序列
+		/// @note 等价于调用 2^192 次 operator()
+		/// @sa jump(), MakeStreamEngine()
 		constexpr void longJump() noexcept;
 
+		/// @brief 输出范围下界
+		/// @return 0
 		[[nodiscard]]
 		static constexpr result_type min() noexcept;
 
+		/// @brief 输出范围上界
+		/// @return 2^64 - 1
 		[[nodiscard]]
 		static constexpr result_type max() noexcept;
 
+		/// @brief 序列化引擎状态
+		/// @return 状态数组（4 个 uint64）
+		/// @sa deserialize()
 		[[nodiscard]]
 		constexpr state_type serialize() const noexcept;
 
+		/// @brief 从状态恢复引擎
+		/// @param state serialize() 返回的状态
+		/// @sa serialize()
 		constexpr void deserialize(state_type state) noexcept;
 
 		friend auto operator <=>(const Xoshiro256StarStar&, const Xoshiro256StarStar&) = default;
@@ -247,53 +295,75 @@ namespace RandX
 		state_type m_state;
 	};
 
-	// xoroshiro128**
-	// 输出：64 位
-	// 周期：2^128 - 1
-	// 状态大小：16 字节
-	// 原始实现：http://prng.di.unimi.it/xoroshiro128starstar.c
-	// 版本：1.0
+	/// @brief Xoroshiro128** 伪随机数生成器，64 位输出，周期 2^128-1。
+	///
+	/// @details 状态 16 字节（2×uint64），内存占用更小，统计质量更优，
+	/// 适合内存受限场景。满足 `std::uniform_random_bit_generator` 概念。
+	/// 原始实现：http://prng.di.unimi.it/xoroshiro128starstar.c（版本 1.0）
+	///
+	/// @note 非 CSPRNG，不可用于密码学场景。安全场景请使用 ChaCha20。
+	/// @sa Xoshiro256StarStar, Xoroshiro64StarStar, ChaCha20
 	class Xoroshiro128StarStar
 	{
 	public:
 
-		using state_type	= std::array<std::uint64_t, 2>;
-		using result_type	= std::uint64_t;
+		using state_type	= std::array<std::uint64_t, 2>;	///< 状态类型（2×uint64）
+		using result_type	= std::uint64_t;	///< 输出类型
 
+		/// @brief 以指定种子构造引擎
+		/// @param seed 64 位种子值
 		[[nodiscard]]
 		explicit constexpr Xoroshiro128StarStar(std::uint64_t seed = DefaultSeed) noexcept;
 
-		// 从 std::seed_seq 播种
+		/// @brief 从 std::seed_seq 播种
+		/// @param seq 种子序列对象
 		template <class SeedSeq>
 			requires (!std::same_as<std::remove_cvref_t<SeedSeq>, Xoroshiro128StarStar>)
 		[[nodiscard]]
 		explicit constexpr Xoroshiro128StarStar(SeedSeq& seq);
 
+		/// @brief 从状态数组直接构造
+		/// @param state serialize() 返回的状态
 		[[nodiscard]]
 		explicit constexpr Xoroshiro128StarStar(state_type state) noexcept;
 
+		/// @brief 生成下一个 64 位随机数
+		/// @return [min(), max()] 区间内的伪随机数
 		constexpr result_type operator()() noexcept;
 
+		/// @brief 跳过 n 个输出
+		/// @param n 跳过次数
 		constexpr void discard(unsigned long long n) noexcept;
 
-		// 跳跃函数。等价于调用 2^64 次 next()；
-		// 可用于生成 2^64 个不重叠的子序列，适用于并行计算。
+		/// @brief 前进 2^64 步，用于创建并行子序列
+		/// @note 等价于调用 2^64 次 operator()
+		/// @sa longJump(), MakeStreamEngine()
 		constexpr void jump() noexcept;
 
-		// 长跳跃函数。等价于调用 2^96 次 next()；
-		// 可用于生成 2^32 个起始点，每个起始点可通过 jump()
-		// 生成 2^32 个不重叠的子序列，适用于并行分布式计算。
+		/// @brief 前进 2^96 步，用于创建更稀疏的并行子序列
+		/// @note 等价于调用 2^96 次 operator()
+		/// @sa jump(), MakeStreamEngine()
 		constexpr void longJump() noexcept;
 
+		/// @brief 输出范围下界
+		/// @return 0
 		[[nodiscard]]
 		static constexpr result_type min() noexcept;
 
+		/// @brief 输出范围上界
+		/// @return 2^64 - 1
 		[[nodiscard]]
 		static constexpr result_type max() noexcept;
 
+		/// @brief 序列化引擎状态
+		/// @return 状态数组（2 个 uint64）
+		/// @sa deserialize()
 		[[nodiscard]]
 		constexpr state_type serialize() const noexcept;
 
+		/// @brief 从状态恢复引擎
+		/// @param state serialize() 返回的状态
+		/// @sa serialize()
 		constexpr void deserialize(state_type state) noexcept;
 
 		friend auto operator <=>(const Xoroshiro128StarStar&, const Xoroshiro128StarStar&) = default;
@@ -303,53 +373,75 @@ namespace RandX
 		state_type m_state;
 	};
 
-	// xoshiro128**
-	// 输出：32 位
-	// 周期：2^128 - 1
-	// 状态大小：16 字节
-	// 原始实现：http://prng.di.unimi.it/xoshiro128starstar.c
-	// 版本：1.1
+	/// @brief Xoshiro128** 伪随机数生成器，32 位输出，周期 2^128-1。
+	///
+	/// @details 状态 16 字节（4×uint32），32 位平台优先选择。
+	/// 满足 `std::uniform_random_bit_generator` 概念。
+	/// 原始实现：http://prng.di.unimi.it/xoshiro128starstar.c（版本 1.1）
+	///
+	/// @note 非 CSPRNG，不可用于密码学场景。安全场景请使用 ChaCha20。
+	/// @sa Xoshiro256StarStar, Xoroshiro64StarStar, ChaCha20
 	class Xoshiro128StarStar
 	{
 	public:
 
-		using state_type	= std::array<std::uint32_t, 4>;
-		using result_type	= std::uint32_t;
+		using state_type	= std::array<std::uint32_t, 4>;	///< 状态类型（4×uint32）
+		using result_type	= std::uint32_t;	///< 输出类型
 
+		/// @brief 以指定种子构造引擎
+		/// @param seed 64 位种子值
 		[[nodiscard]]
 		explicit constexpr Xoshiro128StarStar(std::uint64_t seed = DefaultSeed) noexcept;
 
-		// 从 std::seed_seq 播种
+		/// @brief 从 std::seed_seq 播种
+		/// @param seq 种子序列对象
 		template <class SeedSeq>
 			requires (!std::same_as<std::remove_cvref_t<SeedSeq>, Xoshiro128StarStar>)
 		[[nodiscard]]
 		explicit constexpr Xoshiro128StarStar(SeedSeq& seq);
 
+		/// @brief 从状态数组直接构造
+		/// @param state serialize() 返回的状态
 		[[nodiscard]]
 		explicit constexpr Xoshiro128StarStar(state_type state) noexcept;
 
+		/// @brief 生成下一个 32 位随机数
+		/// @return [min(), max()] 区间内的伪随机数
 		constexpr result_type operator()() noexcept;
 
+		/// @brief 跳过 n 个输出
+		/// @param n 跳过次数
 		constexpr void discard(unsigned long long n) noexcept;
 
-		// 跳跃函数。等价于调用 2^64 次 next()；
-		// 可用于生成 2^64 个不重叠的子序列，适用于并行计算。
+		/// @brief 前进 2^64 步，用于创建并行子序列
+		/// @note 等价于调用 2^64 次 operator()
+		/// @sa longJump(), MakeStreamEngine()
 		constexpr void jump() noexcept;
 
-		// 长跳跃函数。等价于调用 2^96 次 next()；
-		// 可用于生成 2^32 个起始点，每个起始点可通过 jump()
-		// 生成 2^32 个不重叠的子序列，适用于并行分布式计算。
+		/// @brief 前进 2^96 步，用于创建更稀疏的并行子序列
+		/// @note 等价于调用 2^96 次 operator()
+		/// @sa jump(), MakeStreamEngine()
 		constexpr void longJump() noexcept;
 
+		/// @brief 输出范围下界
+		/// @return 0
 		[[nodiscard]]
 		static constexpr result_type min() noexcept;
 
+		/// @brief 输出范围上界
+		/// @return 2^32 - 1
 		[[nodiscard]]
 		static constexpr result_type max() noexcept;
 
+		/// @brief 序列化引擎状态
+		/// @return 状态数组（4 个 uint32）
+		/// @sa deserialize()
 		[[nodiscard]]
 		constexpr state_type serialize() const noexcept;
 
+		/// @brief 从状态恢复引擎
+		/// @param state serialize() 返回的状态
+		/// @sa serialize()
 		constexpr void deserialize(state_type state) noexcept;
 
 		friend auto operator <=>(const Xoshiro128StarStar&, const Xoshiro128StarStar&) = default;
@@ -359,43 +451,65 @@ namespace RandX
 		state_type m_state;
 	};
 
-	// xoroshiro64**
-	// 输出：32 位
-	// 周期：2^64 - 1
-	// 状态大小：8 字节
-	// 原始实现：http://prng.di.unimi.it/xoroshiro64starstar.c
+	/// @brief Xoroshiro64** 伪随机数生成器，32 位输出，周期 2^64-1。
+	///
+	/// @details 状态 8 字节（2×uint32），适合极端内存受限场景。
+	/// 满足 `std::uniform_random_bit_generator` 概念。
+	/// 原始实现：http://prng.di.unimi.it/xoroshiro64starstar.c
+	///
+	/// @note 无 jump 方法。非 CSPRNG，不可用于密码学场景。安全场景请使用 ChaCha20。
+	/// @sa Xoshiro128StarStar, Xoroshiro128StarStar, ChaCha20
 	class Xoroshiro64StarStar
 	{
 	public:
 
-		using state_type	= std::array<std::uint32_t, 2>;
-		using result_type	= std::uint32_t;
+		using state_type	= std::array<std::uint32_t, 2>;	///< 状态类型（2×uint32）
+		using result_type	= std::uint32_t;	///< 输出类型
 
+		/// @brief 以指定种子构造引擎
+		/// @param seed 64 位种子值
 		[[nodiscard]]
 		explicit constexpr Xoroshiro64StarStar(std::uint64_t seed = DefaultSeed) noexcept;
 
-		// 从 std::seed_seq 播种
+		/// @brief 从 std::seed_seq 播种
+		/// @param seq 种子序列对象
 		template <class SeedSeq>
 			requires (!std::same_as<std::remove_cvref_t<SeedSeq>, Xoroshiro64StarStar>)
 		[[nodiscard]]
 		explicit constexpr Xoroshiro64StarStar(SeedSeq& seq);
 
+		/// @brief 从状态数组直接构造
+		/// @param state serialize() 返回的状态
 		[[nodiscard]]
 		explicit constexpr Xoroshiro64StarStar(state_type state) noexcept;
 
+		/// @brief 生成下一个 32 位随机数
+		/// @return [min(), max()] 区间内的伪随机数
 		constexpr result_type operator()() noexcept;
 
+		/// @brief 跳过 n 个输出
+		/// @param n 跳过次数
 		constexpr void discard(unsigned long long n) noexcept;
 
+		/// @brief 输出范围下界
+		/// @return 0
 		[[nodiscard]]
 		static constexpr result_type min() noexcept;
 
+		/// @brief 输出范围上界
+		/// @return 2^32 - 1
 		[[nodiscard]]
 		static constexpr result_type max() noexcept;
 
+		/// @brief 序列化引擎状态
+		/// @return 状态数组（2 个 uint32）
+		/// @sa deserialize()
 		[[nodiscard]]
 		constexpr state_type serialize() const noexcept;
 
+		/// @brief 从状态恢复引擎
+		/// @param state serialize() 返回的状态
+		/// @sa serialize()
 		constexpr void deserialize(state_type state) noexcept;
 
 		friend auto operator <=>(const Xoroshiro64StarStar&, const Xoroshiro64StarStar&) = default;
@@ -405,44 +519,65 @@ namespace RandX
 		state_type m_state;
 	};
 
-	// SFC64 (Small Fast Counter)
-	// 输出：64 位
-	// 周期：>= 2^64（counter 保证）
-	// 状态大小：32 字节
-	// 作者：Chris Doty-Humphrey (PractRand)
-	// 特点：通过 PractRand 全部测试，速度极快，无 jump 支持
+	/// @brief SFC64（Small Fast Counter）伪随机数生成器，64 位输出，周期 >= 2^64。
+	///
+	/// @details 状态 32 字节（4×uint64）。由 Chris Doty-Humphrey（PractRand）设计，
+	/// 速度极快，通过 PractRand 全部统计测试。满足 `std::uniform_random_bit_generator` 概念。
+	///
+	/// @note 周期由 counter 保证 >= 2^64。无 jump 方法。
+	/// 非 CSPRNG，不可用于密码学场景。安全场景请使用 ChaCha20。
+	/// @sa Xoshiro256StarStar, RomuDuoJr, ChaCha20
 	class SFC64
 	{
 	public:
 
-		using state_type	= std::array<std::uint64_t, 4>;
-		using result_type	= std::uint64_t;
+		using state_type	= std::array<std::uint64_t, 4>;	///< 状态类型（4×uint64）
+		using result_type	= std::uint64_t;	///< 输出类型
 
+		/// @brief 以指定种子构造引擎
+		/// @param seed 64 位种子值
 		[[nodiscard]]
 		explicit constexpr SFC64(std::uint64_t seed = DefaultSeed) noexcept;
 
-		// 从 std::seed_seq 播种
+		/// @brief 从 std::seed_seq 播种
+		/// @param seq 种子序列对象
 		template <class SeedSeq>
 			requires (!std::same_as<std::remove_cvref_t<SeedSeq>, SFC64>)
 		[[nodiscard]]
 		explicit constexpr SFC64(SeedSeq& seq);
 
+		/// @brief 从状态数组直接构造
+		/// @param state serialize() 返回的状态
 		[[nodiscard]]
 		explicit constexpr SFC64(state_type state) noexcept;
 
+		/// @brief 生成下一个 64 位随机数
+		/// @return [min(), max()] 区间内的伪随机数
 		constexpr result_type operator()() noexcept;
 
+		/// @brief 跳过 n 个输出
+		/// @param n 跳过次数
 		constexpr void discard(unsigned long long n) noexcept;
 
+		/// @brief 输出范围下界
+		/// @return 0
 		[[nodiscard]]
 		static constexpr result_type min() noexcept;
 
+		/// @brief 输出范围上界
+		/// @return 2^64 - 1
 		[[nodiscard]]
 		static constexpr result_type max() noexcept;
 
+		/// @brief 序列化引擎状态
+		/// @return 状态数组（4 个 uint64）
+		/// @sa deserialize()
 		[[nodiscard]]
 		constexpr state_type serialize() const noexcept;
 
+		/// @brief 从状态恢复引擎
+		/// @param state serialize() 返回的状态
+		/// @sa serialize()
 		constexpr void deserialize(state_type state) noexcept;
 
 		friend auto operator <=>(const SFC64&, const SFC64&) = default;
@@ -455,44 +590,65 @@ namespace RandX
 		std::uint64_t m_counter;
 	};
 
-	// RomuDuoJr
-	// 输出：64 位
-	// 周期：估计 >= 2^51（非严格证明）
-	// 状态大小：16 字节
-	// 作者：Mark Overton
-	// 特点：极简极快，适合非关键模拟，无 jump 支持，周期无严格保证
+	/// @brief RomuDuoJr 伪随机数生成器，64 位输出，周期估计 >= 2^51。
+	///
+	/// @details 状态 16 字节（2×uint64）。由 Mark Overton 设计，
+	/// 极简极快，适合非关键模拟场景。满足 `std::uniform_random_bit_generator` 概念。
+	///
+	/// @note 周期无严格证明（估计 >= 2^51）。无 jump 方法。
+	/// 非 CSPRNG，不可用于密码学场景。安全场景请使用 ChaCha20。
+	/// @sa SFC64, Xoshiro256StarStar, ChaCha20
 	class RomuDuoJr
 	{
 	public:
 
-		using state_type	= std::array<std::uint64_t, 2>;
-		using result_type	= std::uint64_t;
+		using state_type	= std::array<std::uint64_t, 2>;	///< 状态类型（2×uint64）
+		using result_type	= std::uint64_t;	///< 输出类型
 
+		/// @brief 以指定种子构造引擎
+		/// @param seed 64 位种子值
 		[[nodiscard]]
 		explicit constexpr RomuDuoJr(std::uint64_t seed = DefaultSeed) noexcept;
 
-		// 从 std::seed_seq 播种
+		/// @brief 从 std::seed_seq 播种
+		/// @param seq 种子序列对象
 		template <class SeedSeq>
 			requires (!std::same_as<std::remove_cvref_t<SeedSeq>, RomuDuoJr>)
 		[[nodiscard]]
 		explicit constexpr RomuDuoJr(SeedSeq& seq);
 
+		/// @brief 从状态数组直接构造
+		/// @param state serialize() 返回的状态
 		[[nodiscard]]
 		explicit constexpr RomuDuoJr(state_type state) noexcept;
 
+		/// @brief 生成下一个 64 位随机数
+		/// @return [min(), max()] 区间内的伪随机数
 		constexpr result_type operator()() noexcept;
 
+		/// @brief 跳过 n 个输出
+		/// @param n 跳过次数
 		constexpr void discard(unsigned long long n) noexcept;
 
+		/// @brief 输出范围下界
+		/// @return 0
 		[[nodiscard]]
 		static constexpr result_type min() noexcept;
 
+		/// @brief 输出范围上界
+		/// @return 2^64 - 1
 		[[nodiscard]]
 		static constexpr result_type max() noexcept;
 
+		/// @brief 序列化引擎状态
+		/// @return 状态数组（2 个 uint64）
+		/// @sa deserialize()
 		[[nodiscard]]
 		constexpr state_type serialize() const noexcept;
 
+		/// @brief 从状态恢复引擎
+		/// @param state serialize() 返回的状态
+		/// @sa serialize()
 		constexpr void deserialize(state_type state) noexcept;
 
 		friend auto operator <=>(const RomuDuoJr&, const RomuDuoJr&) = default;
@@ -503,42 +659,63 @@ namespace RandX
 		std::uint64_t m_y;
 	};
 
-	// ChaCha20 (RFC 7539) — 密码学安全 PRNG (CSPRNG)
-	// 输出：64 位（每次 operator() 返回 8 字节，一个 block 服务 8 次调用）
-	// 状态：key(256-bit) + counter(32-bit) + nonce(96-bit)，自动 reseed（2^20 字节阈值）提供前向安全
-	// 安全边界：不提供 serialize/deserialize/jump（状态导出违背 CSPRNG 安全模型）
-	// 线程安全：非线程安全（与库内其他引擎一致，每线程持有独立实例）
+	/// @brief ChaCha20 密码学安全伪随机数生成器（CSPRNG），64 位输出，符合 RFC 8439。
+	///
+	/// @details 状态为 key(256-bit) + counter(32-bit) + nonce(96-bit)。
+	/// 每次 operator() 返回 8 字节，一个 block 服务 8 次调用。
+	/// 默认从 OS 熵自动播种，并在输出 2^20 字节后自动 reseed 以提供前向安全。
+	/// 满足 `std::uniform_random_bit_generator` 概念。
+	///
+	/// @note CSPRNG 安全约束：不提供 serialize/deserialize、operator<</>>、
+	/// jump/longJump（状态导出违背 CSPRNG 安全模型）。
+	/// 非线程安全，每线程应持有独立实例。
+	/// @sa SecureRandomBytes, SecureSeed, IsOsCryptoEntropyAvailable, Xoshiro256StarStar
 	class ChaCha20
 	{
 	public:
 
-		using result_type = std::uint64_t;
+		using result_type = std::uint64_t;	///< 输出类型
 
-		// 构造方式 1：从 OS 熵自动播种（密码学安全，默认）
+		/// @brief 构造方式 1：从 OS 熵自动播种（密码学安全，默认）
+		/// @note 推荐用于生产环境的密码学安全场景
 		ChaCha20();
 
-		// 构造方式 2：显式种子（仅测试/复现，非密码学安全：种子空间仅 64-bit）
+		/// @brief 构造方式 2：以显式 64 位种子构造
+		/// @param seed 64 位种子值
+		/// @note 仅用于测试/复现，非密码学安全（种子空间仅 64-bit）
 		[[nodiscard]]
 		explicit ChaCha20(std::uint64_t seed);
 
-		// 构造方式 3：直接指定 key + nonce + counter（高级用法/测试复现）
-		// key 须为 32 字节，nonce 须为 12 字节，否则 throw std::invalid_argument
-		// counter 为 32-bit block 计数器初值（默认 0；KAT 测试时显式传 1）
-		// 注：此构造路径不调用 SecureRandomBytes，调用方须自行保证 key/nonce 的熵源
+		/// @brief 构造方式 3：直接指定 key + nonce + counter（高级用法/测试复现）
+		/// @param key 密钥指针，须为 32 字节
+		/// @param keyLen 密钥长度（字节），须为 32，否则抛出 std::invalid_argument
+		/// @param nonce 随机数指针，须为 12 字节
+		/// @param nonceLen 随机数长度（字节），须为 12，否则抛出 std::invalid_argument
+		/// @param counter 32-bit block 计数器初值（默认 0；KAT 测试时显式传 1）
+		/// @note 此构造路径不调用 SecureRandomBytes，调用方须自行保证 key/nonce 的熵源
 		ChaCha20(const std::uint8_t* key, std::size_t keyLen,
 		         const std::uint8_t* nonce, std::size_t nonceLen,
 		         std::uint32_t counter = 0);
 
+		/// @brief 生成下一个 64 位随机数
+		/// @return [min(), max()] 区间内的密码学安全伪随机数
 		result_type operator()();
 
+		/// @brief 跳过 n 个输出
+		/// @param n 跳过次数
 		void discard(unsigned long long n);
 
-		// 从 OS 熵重新播种（手动触发，重置 counter 与字节缓存）
+		/// @brief 从 OS 熵重新播种
+		/// @note 手动触发，重置 counter 与字节缓存
 		void reseed();
 
+		/// @brief 输出范围下界
+		/// @return 0
 		[[nodiscard]]
 		static constexpr result_type min() noexcept { return 0; }
 
+		/// @brief 输出范围上界
+		/// @return 2^64 - 1
 		[[nodiscard]]
 		static constexpr result_type max() noexcept { return UINT64_MAX; }
 
@@ -1464,8 +1641,9 @@ namespace RandX
 		return engine;
 	}
 
-	// 生成非确定性的 64 位种子（优先硬件 RNG，用于统计 PRNG 播种）
-	// 优先级链：RDRAND (x86_64) → detail::GetOsEntropyBytes → std::random_device → 时间戳回退
+	/// @brief 生成非确定性的 64 位种子
+	/// @return 优先硬件 RNG 的种子值
+	/// @note 优先级链：RDRAND (x86_64) → detail::GetOsEntropyBytes → std::random_device → 时间戳回退
 	[[nodiscard]]
 	inline std::uint64_t RandomSeed()
 	{
@@ -1486,10 +1664,13 @@ namespace RandX
 		}
 	}
 
-	// ── A3 密码学安全熵源公开 API ──
+	/// @defgroup csprng 密码学安全
+	/// @brief ChaCha20 CSPRNG 与 OS 熵源 API
 
-	// 用 OS 密码学熵源填充 [buf, buf+n) 字节
-	// 失败抛 std::runtime_error（CSPRNG 无熵不可用 = 致命错误）
+	/// @brief 用 OS 密码学熵源填充 [buf, buf+n) 字节
+	/// @param buf 目标缓冲区指针
+	/// @param n 需要填充的字节数
+	/// @throw std::runtime_error 当 OS 熵源不可用时抛出（CSPRNG 无熵不可用 = 致命错误）
 	inline void SecureRandomBytes(void* buf, std::size_t n)
 	{
 		if (n == 0) return;
@@ -1497,7 +1678,8 @@ namespace RandX
 			throw std::runtime_error("SecureRandomBytes: OS entropy source unavailable");
 	}
 
-	// 密码学安全种子（复用 SecureRandomBytes，取前 8 字节）
+	/// @brief 生成密码学安全的 64 位随机种子
+	/// @return 复用 SecureRandomBytes 取前 8 字节的种子值
 	[[nodiscard]]
 	inline std::uint64_t SecureSeed()
 	{
@@ -1506,8 +1688,9 @@ namespace RandX
 		return seed;
 	}
 
-	// 返回 true 当且仅当 OS 密码学熵源（BCryptGenRandom/getrandom/SecRandomCopyBytes）可用；
-	// 返回 false 表示当前运行在 std::random_device 兜底路径，不保证密码学安全
+	/// @brief 检测 OS 密码学熵源是否可用
+	/// @return true 当且仅当 BCryptGenRandom/getrandom/SecRandomCopyBytes 可用；
+	///         false 表示当前运行在 std::random_device 兜底路径，不保证密码学安全
 	[[nodiscard]]
 	inline bool IsOsCryptoEntropyAvailable() noexcept
 	{
@@ -1685,19 +1868,26 @@ namespace RandX
 		for (unsigned long long i = 0; i < n; ++i) operator()();
 	}
 
-	// 重置默认引擎的种子（用于测试复现）
+	/// @brief 重置默认引擎的种子（用于测试复现）
+	/// @param seed 新的种子值
 	inline void Reseed(std::uint64_t seed)
 	{
 		DefaultEngine() = Xoshiro256StarStar{ seed };
 	}
 
-	// 重置为真随机种子
+	/// @brief 重置默认引擎为真随机种子
 	inline void ReseedRandom()
 	{
 		DefaultEngine() = Xoshiro256StarStar{ RandomSeed() };
 	}
 
-	// 生成 [min, max] 范围内的随机整数
+	/// @defgroup basic 基础生成
+	/// @brief RandInt / RandReal / RandBool / RandChar / RandBits
+
+	/// @brief 生成 [min, max] 范围内的随机整数
+	/// @param min 下界（含）
+	/// @param max 上界（含）
+	/// @return 均匀分布于 [min, max] 的随机整数
 	template <std::integral T = int>
 	[[nodiscard]]
 	inline T RandInt(T min, T max)
@@ -1706,7 +1896,9 @@ namespace RandX
 		return dist(DefaultEngine());
 	}
 
-	// 生成 [0, max] 范围内的随机整数
+	/// @brief 生成 [0, max] 范围内的随机整数
+	/// @param max 上界（含）
+	/// @return 均匀分布于 [0, max] 的随机整数
 	template <std::integral T = int>
 	[[nodiscard]]
 	inline T RandInt(T max)
@@ -1714,7 +1906,10 @@ namespace RandX
 		return RandInt<T>(T{0}, max);
 	}
 
-	// 生成 [min, max) 范围内的随机浮点数
+	/// @brief 生成 [min, max) 范围内的随机浮点数
+	/// @param min 下界（含，默认 0）
+	/// @param max 上界（不含，默认 1）
+	/// @return 均匀分布于 [min, max) 的随机浮点数
 	template <std::floating_point T = double>
 	[[nodiscard]]
 	inline T RandReal(T min = T{0}, T max = T{1})
@@ -1723,14 +1918,19 @@ namespace RandX
 		return dist(DefaultEngine());
 	}
 
-	// 生成随机布尔值，为 true 的概率为 p
+	/// @brief 生成随机布尔值
+	/// @param p 为 true 的概率（默认 0.5）
+	/// @return 以概率 p 返回 true
 	[[nodiscard]]
 	inline bool RandBool(double p = 0.5)
 	{
 		return RandReal<double>(0.0, 1.0) < p;
 	}
 
-	// 指定引擎的重载：生成随机布尔值，为 true 的概率为 p
+	/// @brief 生成随机布尔值（指定引擎重载）
+	/// @param engine 自定义随机数引擎
+	/// @param p 为 true 的概率（默认 0.5）
+	/// @return 以概率 p 返回 true
 	template <class Engine>
 	[[nodiscard]]
 	inline bool RandBool(Engine& engine, double p = 0.5)
@@ -1739,14 +1939,19 @@ namespace RandX
 		return dist(engine) < p;
 	}
 
-	// 伯努利分布（RandBool 的别名封装，对齐 <random> 命名）
+	/// @brief 伯努利分布（RandBool 的别名封装，对齐 \<random\> 命名）
+	/// @param p 成功概率（默认 0.5）
+	/// @return 以概率 p 返回 true
 	[[nodiscard]]
 	inline bool RandBernoulli(double p = 0.5)
 	{
 		return RandBool(p);
 	}
 
-	// 伯努利分布引擎重载
+	/// @brief 伯努利分布（指定引擎重载）
+	/// @param engine 自定义随机数引擎
+	/// @param p 成功概率（默认 0.5）
+	/// @return 以概率 p 返回 true
 	template <class Engine>
 	[[nodiscard]]
 	inline bool RandBernoulli(Engine& engine, double p = 0.5)
@@ -1754,8 +1959,11 @@ namespace RandX
 		return RandBool(engine, p);
 	}
 
-	// 生成 [min, max] 范围内的随机字符
-	// 内部用 int64_t 避免 char32_t 范围（最大 0xFFFFFFFF）溢出 int32_t
+	/// @brief 生成 [min, max] 范围内的随机字符
+	/// @param min 下界字符（含）
+	/// @param max 上界字符（含）
+	/// @return 均匀分布于 [min, max] 的随机字符
+	/// @note 内部用 int64_t 避免 char32_t 范围（最大 0xFFFFFFFF）溢出 int32_t
 	template <detail::Character CharT>
 	[[nodiscard]]
 	inline CharT RandChar(CharT min, CharT max)
@@ -1766,7 +1974,9 @@ namespace RandX
 		return static_cast<CharT>(dist(DefaultEngine()));
 	}
 
-	// 生成 [CharT{}, max] 范围内的随机字符
+	/// @brief 生成 [CharT{}, max] 范围内的随机字符
+	/// @param max 上界字符（含）
+	/// @return 均匀分布于 [CharT{}, max] 的随机字符
 	template <detail::Character CharT = char>
 	[[nodiscard]]
 	inline CharT RandChar(CharT max)
@@ -1774,7 +1984,11 @@ namespace RandX
 		return RandChar<CharT>(CharT{}, max);
 	}
 
-	// 指定引擎的重载
+	/// @brief 生成 [min, max] 范围内的随机字符（指定引擎重载）
+	/// @param engine 自定义随机数引擎
+	/// @param min 下界字符（含）
+	/// @param max 上界字符（含）
+	/// @return 均匀分布于 [min, max] 的随机字符
 	template <detail::Character CharT, class Engine>
 	[[nodiscard]]
 	inline CharT RandChar(Engine& engine, CharT min, CharT max)
@@ -1785,6 +1999,10 @@ namespace RandX
 		return static_cast<CharT>(dist(engine));
 	}
 
+	/// @brief 生成 [CharT{}, max] 范围内的随机字符（指定引擎重载）
+	/// @param engine 自定义随机数引擎
+	/// @param max 上界字符（含）
+	/// @return 均匀分布于 [CharT{}, max] 的随机字符
 	template <detail::Character CharT = char, class Engine>
 	[[nodiscard]]
 	inline CharT RandChar(Engine& engine, CharT max)
@@ -1792,7 +2010,13 @@ namespace RandX
 		return RandChar<CharT>(engine, CharT{}, max);
 	}
 
-	// 从容器中随机取一个元素
+	/// @defgroup containers 容器操作
+	/// @brief RandElement / RandSample / RandShuffle / RandPermutation / RandFill / RandVector
+
+	/// @brief 从容器中随机取一个元素
+	/// @param c 源容器（需支持 operator[] 和 size()）
+	/// @return 容器中随机选取的一个元素的引用
+	/// @throw std::invalid_argument 容器为空时抛出
 	template <class Container>
 	[[nodiscard]]
 	inline decltype(auto) RandElement(Container&& c)
@@ -1803,7 +2027,11 @@ namespace RandX
 		return c[RandInt<Size>(static_cast<Size>(c.size() - 1))];
 	}
 
-	// 迭代器版 RandElement —— 随机访问迭代器：O(1) 直接定位
+	/// @brief 从迭代器范围内随机取一个元素（随机访问迭代器：O(1) 直接定位）
+	/// @param first 范围起始迭代器
+	/// @param last 范围结束迭代器
+	/// @return 指向随机选取元素的迭代器
+	/// @throw std::invalid_argument 范围为空时抛出
 	template <std::random_access_iterator It>
 	[[nodiscard]]
 	inline It RandElement(It first, It last)
@@ -1815,7 +2043,11 @@ namespace RandX
 		return std::next(first, RandInt<Diff>(Diff{0}, n - 1));
 	}
 
-	// 迭代器版 RandElement —— 输入迭代器（非 random_access）：O(n) reservoir sampling
+	/// @brief 从迭代器范围内随机取一个元素（输入迭代器：O(n) reservoir sampling）
+	/// @param first 范围起始迭代器
+	/// @param last 范围结束迭代器
+	/// @return 指向随机选取元素的迭代器
+	/// @throw std::invalid_argument 范围为空时抛出
 	template <std::input_iterator It>
 		requires (!std::random_access_iterator<It>)
 	[[nodiscard]]
@@ -1833,7 +2065,11 @@ namespace RandX
 		return selected;
 	}
 
-	// 引擎重载 —— 随机访问迭代器
+	/// @brief 从迭代器范围内随机取一个元素（指定引擎，随机访问迭代器）
+	/// @param engine 自定义随机数引擎
+	/// @param first 范围起始迭代器
+	/// @param last 范围结束迭代器
+	/// @return 指向随机选取元素的迭代器
 	template <std::random_access_iterator It, class Engine>
 	[[nodiscard]]
 	inline It RandElement(Engine& engine, It first, It last)
@@ -1845,7 +2081,11 @@ namespace RandX
 		return std::next(first, RandInt<Diff>(engine, Diff{0}, n - 1));
 	}
 
-	// 引擎重载 —— 输入迭代器（非 random_access）
+	/// @brief 从迭代器范围内随机取一个元素（指定引擎，输入迭代器）
+	/// @param engine 自定义随机数引擎
+	/// @param first 范围起始迭代器
+	/// @param last 范围结束迭代器
+	/// @return 指向随机选取元素的迭代器
 	template <std::input_iterator It, class Engine>
 		requires (!std::random_access_iterator<It>)
 	[[nodiscard]]
@@ -1864,7 +2104,13 @@ namespace RandX
 	}
 
 
-	// 生成正态分布随机数（默认均值 0，标准差 1）
+	/// @defgroup distributions 统计分布
+	/// @brief 16 种标准统计分布便捷函数
+
+	/// @brief 生成正态分布随机数
+	/// @param mean 均值（默认 0）
+	/// @param stddev 标准差（默认 1）
+	/// @return 服从 N(mean, stddev) 的随机数
 	template <std::floating_point T = double>
 	[[nodiscard]]
 	inline T RandNormal(T mean = T{0}, T stddev = T{1})
@@ -1873,18 +2119,21 @@ namespace RandX
 		return dist(DefaultEngine());
 	}
 
-	// 随机打乱容器
+	/// @brief 随机打乱容器
+	/// @param c 待打乱的容器
 	template <class Container>
 	inline void RandShuffle(Container&& c)
 	{
 		std::shuffle(c.begin(), c.end(), DefaultEngine());
 	}
 
-	// 用 [min, max] 范围的随机数填充迭代器区间
-	// 注意：T 从 min/max 推导，不从迭代器 value_type 推导。
-	// 若容器元素类型与 min/max 字面量类型不一致，需显式指定 T 或用匹配类型的字面量。
-	// 例：RandFill(v.begin(), v.end(), 0.0, 1.0);  // T=double
-	//     RandFill<double>(v.begin(), v.end(), 0, 1);  // 显式指定 T=double
+	/// @brief 用 [min, max] 范围的随机整数填充迭代器区间
+	/// @param first 起始迭代器
+	/// @param last 结束迭代器
+	/// @param min 随机数下界（含）
+	/// @param max 随机数上界（含）
+	/// @note T 从 min/max 推导，不从迭代器 value_type 推导。
+	///       若容器元素类型与 min/max 字面量类型不一致，需显式指定 T 或用匹配类型的字面量。
 	template <class It, class T>
 		requires detail::RandFillable<It, T>
 	inline void RandFill(It first, It last, T min, T max)
@@ -1894,7 +2143,11 @@ namespace RandX
 			*first = dist(DefaultEngine());
 	}
 
-	// RandFill 浮点版特化
+	/// @brief 用 [min, max) 范围的随机浮点数填充迭代器区间
+	/// @param first 起始迭代器
+	/// @param last 结束迭代器
+	/// @param min 随机数下界（含）
+	/// @param max 随机数上界（不含）
 	template <class It, std::floating_point T>
 		requires std::output_iterator<It, T>
 	inline void RandFill(It first, It last, T min, T max)
@@ -1904,7 +2157,12 @@ namespace RandX
 			*first = dist(DefaultEngine());
 	}
 
-	// 引擎重载
+	/// @brief 用 [min, max] 范围的随机整数填充迭代器区间（指定引擎重载）
+	/// @param engine 自定义随机数引擎
+	/// @param first 起始迭代器
+	/// @param last 结束迭代器
+	/// @param min 随机数下界（含）
+	/// @param max 随机数上界（含）
 	template <class It, class T, class Engine>
 		requires detail::RandFillable<It, T>
 	inline void RandFill(Engine& engine, It first, It last, T min, T max)
@@ -1914,6 +2172,12 @@ namespace RandX
 			*first = dist(engine);
 	}
 
+	/// @brief 用 [min, max) 范围的随机浮点数填充迭代器区间（指定引擎重载）
+	/// @param engine 自定义随机数引擎
+	/// @param first 起始迭代器
+	/// @param last 结束迭代器
+	/// @param min 随机数下界（含）
+	/// @param max 随机数上界（不含）
 	template <class It, std::floating_point T, class Engine>
 		requires std::output_iterator<It, T>
 	inline void RandFill(Engine& engine, It first, It last, T min, T max)
@@ -1923,7 +2187,11 @@ namespace RandX
 			*first = dist(engine);
 	}
 
-	// 生成含 n 个随机整数的 vector
+	/// @brief 生成含 n 个随机整数的 vector
+	/// @param min 随机数下界（含）
+	/// @param max 随机数上界（含）
+	/// @param n 生成数量
+	/// @return 含 n 个均匀分布于 [min, max] 的随机整数 vector
 	template <std::integral T = int>
 	[[nodiscard]]
 	inline std::vector<T> RandVector(T min, T max, std::size_t n)
@@ -1937,7 +2205,11 @@ namespace RandX
 		return v;
 	}
 
-	// 生成含 n 个随机浮点数的 vector
+	/// @brief 生成含 n 个随机浮点数的 vector
+	/// @param min 随机数下界（含）
+	/// @param max 随机数上界（不含）
+	/// @param n 生成数量
+	/// @return 含 n 个均匀分布于 [min, max) 的随机浮点数 vector
 	template <std::floating_point T = double>
 	[[nodiscard]]
 	inline std::vector<T> RandVector(T min, T max, std::size_t n)
@@ -1951,7 +2223,12 @@ namespace RandX
 		return v;
 	}
 
-	// 引擎重载
+	/// @brief 生成含 n 个随机整数的 vector（指定引擎重载）
+	/// @param engine 自定义随机数引擎
+	/// @param min 随机数下界（含）
+	/// @param max 随机数上界（含）
+	/// @param n 生成数量
+	/// @return 含 n 个均匀分布于 [min, max] 的随机整数 vector
 	template <std::integral T = int, class Engine>
 	[[nodiscard]]
 	inline std::vector<T> RandVector(Engine& engine, T min, T max, std::size_t n)
@@ -1964,6 +2241,12 @@ namespace RandX
 		return v;
 	}
 
+	/// @brief 生成含 n 个随机浮点数的 vector（指定引擎重载）
+	/// @param engine 自定义随机数引擎
+	/// @param min 随机数下界（含）
+	/// @param max 随机数上界（不含）
+	/// @param n 生成数量
+	/// @return 含 n 个均匀分布于 [min, max) 的随机浮点数 vector
 	template <std::floating_point T = double, class Engine>
 	[[nodiscard]]
 	inline std::vector<T> RandVector(Engine& engine, T min, T max, std::size_t n)
@@ -1976,7 +2259,9 @@ namespace RandX
 		return v;
 	}
 
-	// 按权重随机选取索引（权重容器元素为数值类型）
+	/// @brief 按权重随机选取索引
+	/// @param weights 权重容器（元素为数值类型）
+	/// @return 按权重概率选中的索引值
 	template <class WeightContainer>
 	[[nodiscard]]
 	inline typename WeightContainer::size_type RandWeighted(const WeightContainer& weights)
@@ -1986,7 +2271,11 @@ namespace RandX
 		return dist(DefaultEngine());
 	}
 
-	// 指定引擎的重载版本
+	/// @brief 生成 [min, max] 范围内的随机整数（指定引擎重载）
+	/// @param engine 自定义随机数引擎
+	/// @param min 下界（含）
+	/// @param max 上界（含）
+	/// @return 均匀分布于 [min, max] 的随机整数
 	template <std::integral T, class Engine>
 	[[nodiscard]]
 	inline T RandInt(Engine& engine, T min, T max)
@@ -1995,6 +2284,11 @@ namespace RandX
 		return dist(engine);
 	}
 
+	/// @brief 生成 [min, max) 范围内的随机浮点数（指定引擎重载）
+	/// @param engine 自定义随机数引擎
+	/// @param min 下界（含，默认 0）
+	/// @param max 上界（不含，默认 1）
+	/// @return 均匀分布于 [min, max) 的随机浮点数
 	template <std::floating_point T, class Engine>
 	[[nodiscard]]
 	inline T RandReal(Engine& engine, T min = T{0}, T max = T{1})
@@ -2067,7 +2361,10 @@ namespace RandX
 		}
 	}
 
-	// 从预设字符集随机取一个字符（固定返回 char：预设集均为 ASCII 范围）
+	/// @brief 从预设字符集随机取一个字符
+	/// @param cs 预设字符集枚举
+	/// @return 从字符集中均匀选取的 char（预设集均为 ASCII 范围）
+	/// @throw std::invalid_argument 字符集为空时抛出
 	[[nodiscard]]
 	inline char RandChar(CharSet cs)
 	{
@@ -2079,7 +2376,10 @@ namespace RandX
 			detail::BoundedRand(rng, static_cast<std::uint64_t>(charset.size())))];
 	}
 
-	// 引擎重载（用 uniform_int_distribution 支持任意引擎，与 RandChar(Engine&, CharT, CharT) 模式一致）
+	/// @brief 从预设字符集随机取一个字符（指定引擎重载）
+	/// @param engine 自定义随机数引擎
+	/// @param cs 预设字符集枚举
+	/// @return 从字符集中均匀选取的 char
 	template <class Engine>
 	[[nodiscard]]
 	inline char RandChar(Engine& engine, CharSet cs)
@@ -2096,7 +2396,10 @@ namespace RandX
 	//	扩展便捷 API
 	//
 
-	// 无放回抽样：从容器中随机抽取 n 个元素（Fisher-Yates 前 n 步）
+	/// @brief 无放回抽样：从容器中随机抽取 n 个元素（Fisher-Yates 前 n 步）
+	/// @param c 源容器
+	/// @param n 抽取数量（若 n >= 容器大小则返回全部元素的副本）
+	/// @return 含 n 个随机选取元素的 vector
 	template <class Container>
 	[[nodiscard]]
 	inline auto RandSample(const Container& c, typename Container::size_type n)
@@ -2123,6 +2426,11 @@ namespace RandX
 	// 路径 2：输入迭代器 —— reservoir sampling (Algorithm R, i+1 修复)
 	// ============================================================
 
+	/// @brief 无放回抽样（随机访问迭代器版，hash-set / 索引数组双分支）
+	/// @param first 范围起始迭代器
+	/// @param last 范围结束迭代器
+	/// @param n 抽取数量
+	/// @return 含 n 个随机选取元素的 vector
 	// 路径 1：随机访问迭代器（hash-set / 索引数组双分支）
 	template <std::random_access_iterator It>
 	[[nodiscard]]
@@ -2181,6 +2489,11 @@ namespace RandX
 		return result;
 	}
 
+	/// @brief 无放回抽样（输入迭代器版，reservoir sampling Algorithm R）
+	/// @param first 范围起始迭代器
+	/// @param last 范围结束迭代器
+	/// @param n 抽取数量
+	/// @return 含 n 个随机选取元素的 vector
 	// 路径 2：输入迭代器（reservoir sampling, Algorithm R, i+1 修复）
 	template <std::input_iterator It>
 		requires (!std::random_access_iterator<It>)
@@ -2217,6 +2530,12 @@ namespace RandX
 		return reservoir;
 	}
 
+	/// @brief 无放回抽样（指定引擎，随机访问迭代器版）
+	/// @param engine 自定义随机数引擎
+	/// @param first 范围起始迭代器
+	/// @param last 范围结束迭代器
+	/// @param n 抽取数量
+	/// @return 含 n 个随机选取元素的 vector
 	// 引擎重载 —— 随机访问迭代器
 	template <std::random_access_iterator It, class Engine>
 	[[nodiscard]]
@@ -2268,6 +2587,12 @@ namespace RandX
 		return result;
 	}
 
+	/// @brief 无放回抽样（指定引擎，输入迭代器版，reservoir sampling）
+	/// @param engine 自定义随机数引擎
+	/// @param first 范围起始迭代器
+	/// @param last 范围结束迭代器
+	/// @param n 抽取数量
+	/// @return 含 n 个随机选取元素的 vector
 	// 引擎重载 —— 输入迭代器（reservoir）
 	template <std::input_iterator It, class Engine>
 		requires (!std::random_access_iterator<It>)
@@ -2300,7 +2625,9 @@ namespace RandX
 		return reservoir;
 	}
 
-	// 生成 [0, n) 的随机排列
+	/// @brief 生成 [0, n) 的随机排列
+	/// @param n 排列长度
+	/// @return 含 0 到 n-1 随机排列的 vector
 	[[nodiscard]]
 	inline std::vector<std::size_t> RandPermutation(std::size_t n)
 	{
@@ -2318,7 +2645,14 @@ namespace RandX
 		return perm;
 	}
 
-	// 生成指定长度的随机字符串
+	/// @defgroup strings 字符串与 ID
+	/// @brief RandString / RandUUID
+
+	/// @brief 生成指定长度的随机字符串
+	/// @param length 字符串长度
+	/// @param charset 可用字符集（默认为字母+数字）
+	/// @return 从 charset 中均匀选取字符组成的随机字符串
+	/// @throw std::invalid_argument charset 为空时抛出
 	[[nodiscard]]
 	inline std::string RandString(std::size_t length, std::string_view charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
 	{
@@ -2332,14 +2666,21 @@ namespace RandX
 		return result;
 	}
 
-	// 从预设字符集生成随机字符串（委托 string_view 版，零重复代码）
+	/// @brief 从预设字符集生成随机字符串
+	/// @param n 字符串长度
+	/// @param cs 预设字符集枚举
+	/// @return 从预设字符集中均匀选取字符组成的随机字符串
 	[[nodiscard]]
 	inline std::string RandString(std::size_t n, CharSet cs)
 	{
 		return RandString(n, detail::CharSetString(cs));
 	}
 
-	// 引擎重载：从预设字符集生成随机字符串（用 uniform_int_distribution 支持任意引擎）
+	/// @brief 从预设字符集生成随机字符串（指定引擎重载）
+	/// @param engine 自定义随机数引擎
+	/// @param n 字符串长度
+	/// @param cs 预设字符集枚举
+	/// @return 从预设字符集中均匀选取字符组成的随机字符串
 	template <class Engine>
 	[[nodiscard]]
 	inline std::string RandString(Engine& engine, std::size_t n, CharSet cs)
@@ -2354,7 +2695,9 @@ namespace RandX
 		return result;
 	}
 
-	// 指数分布随机数（参数 lambda，均值 = 1/lambda）
+	/// @brief 生成指数分布随机数
+	/// @param lambda 速率参数（默认 1，均值 = 1/lambda）
+	/// @return 服从 Exp(lambda) 的随机数
 	template <std::floating_point T = double>
 	[[nodiscard]]
 	inline T RandExp(T lambda = T{1})
@@ -2363,7 +2706,9 @@ namespace RandX
 		return dist(DefaultEngine());
 	}
 
-	// 泊松分布随机数（参数 mean）
+	/// @brief 生成泊松分布随机数
+	/// @param mean 均值参数（默认 1.0）
+	/// @return 服从 Poisson(mean) 的随机整数
 	template <std::integral T = int>
 	[[nodiscard]]
 	inline T RandPoisson(double mean = 1.0)
@@ -2372,7 +2717,10 @@ namespace RandX
 		return dist(DefaultEngine());
 	}
 
-	// 伽马分布随机数（参数 alpha, beta）
+	/// @brief 生成伽马分布随机数
+	/// @param alpha 形状参数（默认 1）
+	/// @param beta 尺度参数（默认 1）
+	/// @return 服从 Gamma(alpha, beta) 的随机数
 	template <std::floating_point T = double>
 	[[nodiscard]]
 	inline T RandGamma(T alpha = T{1}, T beta = T{1})
@@ -2381,7 +2729,10 @@ namespace RandX
 		return dist(DefaultEngine());
 	}
 
-	// 二项分布随机数（t 次试验，每次成功概率 p）
+	/// @brief 生成二项分布随机数
+	/// @param t 试验次数（默认 1）
+	/// @param p 每次成功概率（默认 0.5）
+	/// @return 服从 B(t, p) 的随机整数
 	template <std::integral T = int>
 	[[nodiscard]]
 	inline T RandBinomial(T t = 1, double p = 0.5)
@@ -2390,7 +2741,11 @@ namespace RandX
 		return dist(DefaultEngine());
 	}
 
-	// 二项分布引擎重载
+	/// @brief 生成二项分布随机数（指定引擎重载）
+	/// @param engine 自定义随机数引擎
+	/// @param t 试验次数（默认 1）
+	/// @param p 每次成功概率（默认 0.5）
+	/// @return 服从 B(t, p) 的随机整数
 	template <std::integral T = int, class Engine>
 	[[nodiscard]]
 	inline T RandBinomial(Engine& engine, T t = 1, double p = 0.5)
@@ -2399,7 +2754,10 @@ namespace RandX
 		return dist(engine);
 	}
 
-	// 对数正态分布随机数（参数 mean, stddev）
+	/// @brief 生成对数正态分布随机数
+	/// @param mean 对数均值（默认 0）
+	/// @param stddev 对数标准差（默认 1）
+	/// @return 服从 LogNormal(mean, stddev) 的随机数
 	template <std::floating_point T = double>
 	[[nodiscard]]
 	inline T RandLogNormal(T mean = T{0}, T stddev = T{1})
@@ -2408,7 +2766,11 @@ namespace RandX
 		return dist(DefaultEngine());
 	}
 
-	// 对数正态分布引擎重载
+	/// @brief 生成对数正态分布随机数（指定引擎重载）
+	/// @param engine 自定义随机数引擎
+	/// @param mean 对数均值（默认 0）
+	/// @param stddev 对数标准差（默认 1）
+	/// @return 服从 LogNormal(mean, stddev) 的随机数
 	template <std::floating_point T = double, class Engine>
 	[[nodiscard]]
 	inline T RandLogNormal(Engine& engine, T mean = T{0}, T stddev = T{1})
@@ -2417,7 +2779,9 @@ namespace RandX
 		return dist(engine);
 	}
 
-	// 几何分布随机数（首次成功前的失败次数，参数 p）
+	/// @brief 生成几何分布随机数（首次成功前的失败次数）
+	/// @param p 每次成功概率（默认 0.5）
+	/// @return 服从 Geometric(p) 的随机整数
 	template <std::integral T = int>
 	[[nodiscard]]
 	inline T RandGeometric(double p = 0.5)
@@ -2426,7 +2790,10 @@ namespace RandX
 		return dist(DefaultEngine());
 	}
 
-	// 几何分布引擎重载
+	/// @brief 生成几何分布随机数（指定引擎重载）
+	/// @param engine 自定义随机数引擎
+	/// @param p 每次成功概率（默认 0.5）
+	/// @return 服从 Geometric(p) 的随机整数
 	template <std::integral T = int, class Engine>
 	[[nodiscard]]
 	inline T RandGeometric(Engine& engine, double p = 0.5)
@@ -2435,7 +2802,10 @@ namespace RandX
 		return dist(engine);
 	}
 
-	// 柯西分布随机数（位置参数 a，尺度参数 b）
+	/// @brief 生成柯西分布随机数
+	/// @param a 位置参数（默认 0）
+	/// @param b 尺度参数（默认 1）
+	/// @return 服从 Cauchy(a, b) 的随机数
 	template <std::floating_point T = double>
 	[[nodiscard]]
 	inline T RandCauchy(T a = T{0}, T b = T{1})
@@ -2444,7 +2814,11 @@ namespace RandX
 		return dist(DefaultEngine());
 	}
 
-	// 柯西分布引擎重载
+	/// @brief 生成柯西分布随机数（指定引擎重载）
+	/// @param engine 自定义随机数引擎
+	/// @param a 位置参数（默认 0）
+	/// @param b 尺度参数（默认 1）
+	/// @return 服从 Cauchy(a, b) 的随机数
 	template <std::floating_point T = double, class Engine>
 	[[nodiscard]]
 	inline T RandCauchy(Engine& engine, T a = T{0}, T b = T{1})
@@ -2453,7 +2827,10 @@ namespace RandX
 		return dist(engine);
 	}
 
-	// 韦布尔分布随机数（形状参数 a，尺度参数 b）
+	/// @brief 生成韦布尔分布随机数
+	/// @param a 形状参数（默认 1）
+	/// @param b 尺度参数（默认 1）
+	/// @return 服从 Weibull(a, b) 的随机数
 	template <std::floating_point T = double>
 	[[nodiscard]]
 	inline T RandWeibull(T a = T{1}, T b = T{1})
@@ -2462,7 +2839,11 @@ namespace RandX
 		return dist(DefaultEngine());
 	}
 
-	// 韦布尔分布引擎重载
+	/// @brief 生成韦布尔分布随机数（指定引擎重载）
+	/// @param engine 自定义随机数引擎
+	/// @param a 形状参数（默认 1）
+	/// @param b 尺度参数（默认 1）
+	/// @return 服从 Weibull(a, b) 的随机数
 	template <std::floating_point T = double, class Engine>
 	[[nodiscard]]
 	inline T RandWeibull(Engine& engine, T a = T{1}, T b = T{1})
@@ -2471,7 +2852,10 @@ namespace RandX
 		return dist(engine);
 	}
 
-	// 极值分布（Gumbel）随机数（位置参数 a，尺度参数 b）
+	/// @brief 生成极值分布（Gumbel）随机数
+	/// @param a 位置参数（默认 0）
+	/// @param b 尺度参数（默认 1）
+	/// @return 服从 ExtremeValue(a, b) 的随机数
 	template <std::floating_point T = double>
 	[[nodiscard]]
 	inline T RandExtremeValue(T a = T{0}, T b = T{1})
@@ -2480,7 +2864,11 @@ namespace RandX
 		return dist(DefaultEngine());
 	}
 
-	// 极值分布引擎重载
+	/// @brief 生成极值分布随机数（指定引擎重载）
+	/// @param engine 自定义随机数引擎
+	/// @param a 位置参数（默认 0）
+	/// @param b 尺度参数（默认 1）
+	/// @return 服从 ExtremeValue(a, b) 的随机数
 	template <std::floating_point T = double, class Engine>
 	[[nodiscard]]
 	inline T RandExtremeValue(Engine& engine, T a = T{0}, T b = T{1})
@@ -2489,7 +2877,9 @@ namespace RandX
 		return dist(engine);
 	}
 
-	// 卡方分布随机数（自由度 n）
+	/// @brief 生成卡方分布随机数
+	/// @param n 自由度（默认 1）
+	/// @return 服从 ChiSquared(n) 的随机数
 	template <std::floating_point T = double>
 	[[nodiscard]]
 	inline T RandChiSquared(T n = T{1})
@@ -2498,7 +2888,10 @@ namespace RandX
 		return dist(DefaultEngine());
 	}
 
-	// 卡方分布引擎重载
+	/// @brief 生成卡方分布随机数（指定引擎重载）
+	/// @param engine 自定义随机数引擎
+	/// @param n 自由度（默认 1）
+	/// @return 服从 ChiSquared(n) 的随机数
 	template <std::floating_point T = double, class Engine>
 	[[nodiscard]]
 	inline T RandChiSquared(Engine& engine, T n = T{1})
@@ -2507,7 +2900,9 @@ namespace RandX
 		return dist(engine);
 	}
 
-	// 学生 t 分布随机数（自由度 n）
+	/// @brief 生成学生 t 分布随机数
+	/// @param n 自由度（默认 1）
+	/// @return 服从 StudentT(n) 的随机数
 	template <std::floating_point T = double>
 	[[nodiscard]]
 	inline T RandStudentT(T n = T{1})
@@ -2516,7 +2911,10 @@ namespace RandX
 		return dist(DefaultEngine());
 	}
 
-	// 学生 t 分布引擎重载
+	/// @brief 生成学生 t 分布随机数（指定引擎重载）
+	/// @param engine 自定义随机数引擎
+	/// @param n 自由度（默认 1）
+	/// @return 服从 StudentT(n) 的随机数
 	template <std::floating_point T = double, class Engine>
 	[[nodiscard]]
 	inline T RandStudentT(Engine& engine, T n = T{1})
@@ -2525,7 +2923,10 @@ namespace RandX
 		return dist(engine);
 	}
 
-	// Fisher F 分布随机数（自由度 m, n）
+	/// @brief 生成 Fisher F 分布随机数
+	/// @param m 第一自由度（默认 1）
+	/// @param n 第二自由度（默认 1）
+	/// @return 服从 FisherF(m, n) 的随机数
 	template <std::floating_point T = double>
 	[[nodiscard]]
 	inline T RandFisherF(T m = T{1}, T n = T{1})
@@ -2534,7 +2935,11 @@ namespace RandX
 		return dist(DefaultEngine());
 	}
 
-	// Fisher F 分布引擎重载
+	/// @brief 生成 Fisher F 分布随机数（指定引擎重载）
+	/// @param engine 自定义随机数引擎
+	/// @param m 第一自由度（默认 1）
+	/// @param n 第二自由度（默认 1）
+	/// @return 服从 FisherF(m, n) 的随机数
 	template <std::floating_point T = double, class Engine>
 	[[nodiscard]]
 	inline T RandFisherF(Engine& engine, T m = T{1}, T n = T{1})
@@ -2543,7 +2948,11 @@ namespace RandX
 		return dist(engine);
 	}
 
-	// Beta 分布随机数（形状参数 a, b；无 STL，自实现 Gamma(a)/(Gamma(a)+Gamma(b))）
+	/// @brief 生成 Beta 分布随机数
+	/// @param a 形状参数（默认 1）
+	/// @param b 形状参数（默认 1）
+	/// @return 服从 Beta(a, b) 的随机数
+	/// @note 无 STL 对应，自实现 Gamma(a)/(Gamma(a)+Gamma(b))
 	template <std::floating_point T = double>
 	[[nodiscard]]
 	inline T RandBeta(T a = T{1}, T b = T{1})
@@ -2560,7 +2969,11 @@ namespace RandX
 		return x / sum;
 	}
 
-	// Beta 分布引擎重载
+	/// @brief 生成 Beta 分布随机数（指定引擎重载）
+	/// @param engine 自定义随机数引擎
+	/// @param a 形状参数（默认 1）
+	/// @param b 形状参数（默认 1）
+	/// @return 服从 Beta(a, b) 的随机数
 	template <std::floating_point T = double, class Engine>
 	[[nodiscard]]
 	inline T RandBeta(Engine& engine, T a = T{1}, T b = T{1})
@@ -2575,7 +2988,9 @@ namespace RandX
 		return x / sum;
 	}
 
-	// 生成 N 位随机整数（结果范围 [0, 2^N)）
+	/// @brief 生成 N 位随机整数
+	/// @tparam N 位数（1-64）
+	/// @return 均匀分布于 [0, 2^N) 的随机整数
 	template <int N, std::integral T = std::uint64_t>
 		requires (N > 0 && N <= 64)
 	[[nodiscard]]
@@ -2588,7 +3003,8 @@ namespace RandX
 			return static_cast<T>(rng() & ((std::uint64_t{1} << N) - 1));
 	}
 
-	// 生成随机 UUID v4 字符串（xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx）
+	/// @brief 生成随机 UUID v4 字符串
+	/// @return 格式为 xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx 的 UUID 字符串
 	[[nodiscard]]
 	inline std::string RandUUID()
 	{
@@ -2610,10 +3026,11 @@ namespace RandX
 	//	多流接口（并行计算）
 	//
 
-	// 从同一种子创建第 streamId 个不重叠子序列的引擎
-	// 每个流之间间隔 2^128 步（xoshiro256）或 2^64 步（xoroshiro128/xoshiro128）
-	// 注意：Xoroshiro64 系列无 jump 函数，不支持多流
-	// 约束用 detail::StreamEngine 概念（语义清晰，错误信息含概念名，便于定位）
+	/// @brief 从同一种子创建第 streamId 个不重叠子序列的引擎
+	/// @param streamId 流编号（每个流之间间隔 2^128 步或 2^64 步）
+	/// @param seed 共享种子（默认 DefaultSeed）
+	/// @return 第 streamId 个不重叠子序列的引擎实例
+	/// @note Xoroshiro64 系列无 jump 函数，不支持多流
 	template <class Engine>
 		requires detail::StreamEngine<Engine>
 	[[nodiscard]]
@@ -2666,8 +3083,10 @@ namespace RandX
 #endif
 	}
 
-	// 编译期生成 [min, max] 范围内的随机整数（使用固定种子，结果在编译期确定）
-	// 使用 Lemire 有界法消除模偏差
+	/// @brief 编译期生成 [min, max] 范围内的随机整数
+	/// @param min 下界（含）
+	/// @param max 上界（含）
+	/// @return 使用固定种子在编译期确定的随机整数（Lemire 有界法，无模偏差）
 	template <std::integral T = int, std::uint64_t Seed = DefaultSeed>
 	[[nodiscard]]
 	inline constexpr T RandIntCE(T min, T max) noexcept
@@ -2677,7 +3096,9 @@ namespace RandX
 		return static_cast<T>(static_cast<std::uint64_t>(min) + detail::BoundedRand(rng, range));
 	}
 
-	// 编译期生成 [0, max] 范围内的随机整数
+	/// @brief 编译期生成 [0, max] 范围内的随机整数
+	/// @param max 上界（含）
+	/// @return 使用固定种子在编译期确定的随机整数
 	template <std::integral T = int, std::uint64_t Seed = DefaultSeed>
 	[[nodiscard]]
 	inline constexpr T RandIntCE(T max) noexcept
@@ -2690,7 +3111,10 @@ namespace RandX
 	//	编译期洗牌（constexpr）
 	//
 
-	// 编译期 Fisher-Yates 洗牌（std::shuffle 在 C++23 中仍非 constexpr）
+	/// @brief 编译期 Fisher-Yates 洗牌
+	/// @param first 起始迭代器
+	/// @param last 结束迭代器
+	/// @note std::shuffle 在 C++23 中仍非 constexpr，故自实现
 	template <std::random_access_iterator It, std::uint64_t Seed = DefaultSeed>
 	constexpr void ShuffleCE(It first, It last) noexcept
 	{
@@ -2709,7 +3133,9 @@ namespace RandX
 		}
 	}
 
-	// 编译期洗牌数组版本（返回打乱后的副本）
+	/// @brief 编译期洗牌数组版本（返回打乱后的副本）
+	/// @param arr 待打乱的数组
+	/// @return 打乱后的数组副本
 	template <class T, std::size_t N, std::uint64_t Seed = DefaultSeed>
 	[[nodiscard]]
 	constexpr std::array<T, N> ShuffledArray(std::array<T, N> arr) noexcept
@@ -2744,9 +3170,10 @@ namespace RandX
 	//
 	namespace ranges
 	{
-		// 随机选取一个元素（返回值拷贝，非迭代器）
-		// 约束：sized_range || forward_range，确保能计算大小或多次遍历
-		// 语义差异：迭代器版返回迭代器（可修改原元素），ranges 版返回值拷贝
+		/// @brief 随机选取一个元素（返回值拷贝，非迭代器）
+		/// @param r 源 range（需满足 sized_range 或 forward_range）
+		/// @return 随机选取的元素值拷贝
+		/// @note 语义差异：迭代器版返回迭代器（可修改原元素），ranges 版返回值拷贝
 		template <std::ranges::input_range R>
 			requires std::ranges::sized_range<R> || std::ranges::forward_range<R>
 		[[nodiscard]]
@@ -2756,7 +3183,10 @@ namespace RandX
 			return *RandX::RandElement(std::ranges::begin(r), std::ranges::end(r));
 		}
 
-		// 无放回抽样（复用迭代器版实现，自动选择 random_access / input 路径）
+		/// @brief 无放回抽样（复用迭代器版实现，自动选择 random_access / input 路径）
+		/// @param r 源 range
+		/// @param n 抽取数量
+		/// @return 含 n 个随机选取元素的 vector
 		template <std::ranges::input_range R>
 		[[nodiscard]]
 		inline std::vector<std::ranges::range_value_t<R>>
@@ -2765,7 +3195,8 @@ namespace RandX
 			return RandX::RandSample(std::ranges::begin(r), std::ranges::end(r), n);
 		}
 
-		// 随机打乱（要求 random_access + sized）
+		/// @brief 随机打乱 range（要求 random_access + sized）
+		/// @param r 待打乱的 range
 		template <std::ranges::random_access_range R>
 			requires std::ranges::sized_range<R>
 		inline void
@@ -2774,10 +3205,11 @@ namespace RandX
 			std::ranges::shuffle(r, RandX::DefaultEngine());
 		}
 
-		// 填充（模板化，支持任意整型/浮点 T）
-		// 调用示例：RandFill(v, 0, 99)  -> T=int
-		//           RandFill(v, 0.0, 1.0) -> T=double
-		//           RandFill(v, 0.0f, 1.0f) -> T=float
+		/// @brief 用随机数填充 range
+		/// @param r 目标 range
+		/// @param min 随机数下界
+		/// @param max 随机数上界
+		/// @note T 从 min/max 推导：RandFill(v, 0, 99) -> T=int; RandFill(v, 0.0, 1.0) -> T=double
 		template <class T, std::ranges::output_range<const T&> R>
 		inline void
 		RandFill(R&& r, T min, T max)

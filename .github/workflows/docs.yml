@@ -1,0 +1,42 @@
+name: Docs
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'RandX.hpp'
+      - 'RandX_Cpp17.hpp'
+      - 'README.md'
+      - 'Doxyfile'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Doxygen 1.10.0 & Graphviz
+        run: |
+          wget -q https://doxygen.nl/files/doxygen-1.10.0.linux.bin.tar.gz
+          tar xzf doxygen-1.10.0.linux.bin.tar.gz
+          echo "$PWD/doxygen-1.10.0/bin" >> $GITHUB_PATH
+          sudo apt-get install -y graphviz
+
+      - name: Sync PROJECT_NUMBER from CMakeLists.txt
+        run: |
+          VERSION=$(grep -oP 'project\(RandX VERSION \K[0-9.]+' CMakeLists.txt)
+          echo "提取到版本号: $VERSION"
+          sed -i "s/^PROJECT_NUMBER.*/PROJECT_NUMBER = $VERSION/" Doxyfile
+
+      - name: Generate Docs
+        run: doxygen Doxyfile
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: docs/api/html
+          publish_branch: gh-pages
+          force_orphan: true
